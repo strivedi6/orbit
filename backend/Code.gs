@@ -11,10 +11,10 @@ var ADMIN = {
   propertyCode: 'DXBAI',
   propertyName: 'Embassy Suites by Hilton Dubai Business Bay',
   teamName: 'Marketing',
-  username: 'shri',
-  name: 'Shri Trivedi',
+  username: 'strivedi6',
+  name: 'Shrikant Trivedi',
   jobTitle: 'Cluster Marketing Manager',
-  pin: '1234'            // change this before running setup()
+  pin: '0000'            // put your own PIN here before running setup(); never commit the real one
 };
 // Extra properties and teams created by setup(). Add or remove freely; you can also add them later in the app.
 var SEED = {
