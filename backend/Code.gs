@@ -77,6 +77,15 @@ var SheetDB = (function () {
   function load(t) {
     if (cache[t]) return cache[t];
     var sh = sheet(t), vals = sh.getDataRange().getValues(), head = vals[0], rows = [];
+    // Add any columns a newer version of the app needs, at the end of the header row.
+    var missing = TABLES[t].filter(function (k) { return head.indexOf(k) < 0; });
+    if (missing.length) {
+      var start = head.filter(function (h) { return h !== ''; }).length;
+      head = head.slice(0, start).concat(missing);
+      sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
+      sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+      vals = sh.getDataRange().getValues();
+    }
     for (var i = 1; i < vals.length; i++) {
       if (vals[i].join('') === '') continue;
       var o = {};
@@ -139,9 +148,9 @@ var SheetDB = (function () {
    ===================================================================== */
 
 var TABLES = {
-  properties: ['id','code','name','createdAt'],
+  properties: ['id','code','name','createdAt','color','logo'],
   teams:      ['id','propertyCode','name','color','createdAt'],
-  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt'],
+  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV'],
   sessions:   ['id','userId','createdAt','lastSeen'],
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
@@ -154,6 +163,17 @@ var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
 var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
 var MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+var MAX_IMAGE_CHARS = 48000; // one Google Sheets cell holds 50,000 characters
+var ID_RE = /^[a-z][a-z0-9]{6,40}$/;
+function cleanId(id, prefix) { return ID_RE.test(String(id || '')) ? String(id) : uid(prefix); }
+function cleanImage(v) {
+  v = String(v || '');
+  if (!v) return '';
+  if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(v)) fail('Choose a PNG, JPG or WebP image.');
+  if (v.length > MAX_IMAGE_CHARS) fail('That image is too large. Try a smaller one.');
+  return v;
+}
+function publicProperty(p) { return { id: p.id, code: p.code, name: p.name, color: p.color || 'blue', logo: p.logo || '' }; }
 
 function sha256(ascii) {
   function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
@@ -206,7 +226,7 @@ function makeToken() { return 't' + sha256(uid() + Math.random() + Date.now()).s
 function publicUser(u) {
   return { id: u.id, propertyCode: u.propertyCode, teamId: u.teamId, username: u.username, name: u.name,
     jobTitle: u.jobTitle, role: u.role, status: u.status, avatarColor: u.avatarColor, createdAt: u.createdAt,
-    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '' };
+    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', photoV: u.photo ? String(u.photoV || '1') : '' };
 }
 function isAdmin(u) { return u.role === 'admin'; }
 function canSeeTeam(u, teamId) { return isAdmin(u) || u.teamId === teamId; }
@@ -243,7 +263,7 @@ var ACTIONS = {
     var teams = DB.all('teams').filter(function (t) { return t.propertyCode === p.code; })
       .map(function (t) { return { id: t.id, name: t.name, color: t.color }; })
       .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
-    return { property: { code: p.code, name: p.name }, teams: teams };
+    return { property: publicProperty(p), teams: teams };
   },
 
   signup: function (DB, r) {
@@ -284,7 +304,7 @@ var ACTIONS = {
     DB.update('users', u.id, { failed: 0, lockedUntil: '' });
     var token = makeToken();
     DB.insert('sessions', { id: token, userId: u.id, createdAt: nowISO(), lastSeen: nowISO() });
-    return { token: token, user: publicUser(u) };
+    return { token: token, user: publicUser(u), photo: u.photo || '', data: ACTIONS.sync(DB, { token: token }) };
   },
 
   logout: function (DB, r) {
@@ -308,8 +328,7 @@ var ACTIONS = {
       .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
     return {
       me: publicUser(u),
-      properties: DB.all('properties').filter(function (p) { return admin || p.code === u.propertyCode; })
-        .map(function (p) { return { id: p.id, code: p.code, name: p.name }; }),
+      properties: DB.all('properties').filter(function (p) { return admin || p.code === u.propertyCode; }).map(publicProperty),
       teams: teams, users: users,
       projects: DB.all('projects').filter(inScope),
       tasks: DB.all('tasks').filter(inScope),
@@ -334,7 +353,7 @@ var ACTIONS = {
     }
     var teamId = isAdmin(u) && p.teamId ? p.teamId : u.teamId;
     if (!DB.get('teams', teamId)) fail('Choose a team for this project.');
-    var obj = Object.assign({ id: uid('p'), teamId: teamId, createdBy: u.id, createdAt: nowISO() }, fields);
+    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO() }, fields);
     if (!obj.ownerId) obj.ownerId = u.id;
     DB.insert('projects', obj);
     log(DB, u, teamId, 'project', obj.id, 'created the project ' + obj.name, []);
@@ -343,7 +362,8 @@ var ACTIONS = {
 
   deleteProject: function (DB, r) {
     var u = auth(DB, r.token), p = DB.get('projects', r.id);
-    if (!p || !canSeeTeam(u, p.teamId)) fail('That project no longer exists.');
+    if (!p) return { ok: true };
+    if (!canSeeTeam(u, p.teamId)) fail('That project no longer exists.');
     if (!(canManageTeam(u, p.teamId) || p.createdBy === u.id)) fail('Only the person who created this project or a department head can delete it.');
     DB.all('tasks').filter(function (t) { return t.projectId === p.id; }).forEach(function (t) {
       DB.all('comments').filter(function (c) { return c.taskId === t.id; }).forEach(function (c) { DB.remove('comments', c.id); });
@@ -393,7 +413,7 @@ var ACTIONS = {
       return after;
     }
     if (!f.title) fail('A task needs a title.');
-    var obj = Object.assign({ id: uid('t'), parentId: parent ? parent.id : '', projectId: projectId || '', notes: '', status: 'todo',
+    var obj = Object.assign({ id: cleanId(t.id, 't'), parentId: parent ? parent.id : '', projectId: projectId || '', notes: '', status: 'todo',
       priority: 'none', assignees: [], due: '', order: Date.now(), attachments: [], completedAt: '',
       createdBy: u.id, createdAt: nowISO() }, f);
     DB.insert('tasks', obj);
@@ -403,7 +423,9 @@ var ACTIONS = {
   },
 
   deleteTask: function (DB, r) {
-    var u = auth(DB, r.token), t = taskOrFail(DB, u, r.id);
+    var u = auth(DB, r.token), t = DB.get('tasks', r.id);
+    if (!t) return { ok: true };
+    if (!canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
     if (!(canManageTeam(u, t.teamId) || t.createdBy === u.id)) fail('Only the person who created this task or a department head can delete it.');
     var kill = function (id) {
       DB.all('tasks').filter(function (x) { return x.parentId === id; }).forEach(function (x) { kill(x.id); });
@@ -417,7 +439,8 @@ var ACTIONS = {
   addComment: function (DB, r) {
     var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId), text = str(r.text, 4000);
     if (!text) fail('Write a comment first.');
-    var c = { id: uid('c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO() };
+    if (r.id && DB.get('comments', r.id)) return DB.get('comments', r.id);
+    var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO() };
     DB.insert('comments', c);
     log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
     return c;
@@ -464,6 +487,7 @@ var ACTIONS = {
     var f = {};
     if (patch.name !== undefined) f.name = str(patch.name, 60) || target.name;
     if (patch.jobTitle !== undefined) f.jobTitle = str(patch.jobTitle, 60);
+    if (patch.photo !== undefined) { f.photo = cleanImage(patch.photo); f.photoV = String(Date.now()); }
     if (patch.role !== undefined) {
       var allowed = isAdmin(u) ? ['member', 'head', 'admin'] : ['member', 'head'];
       if (allowed.indexOf(patch.role) < 0) fail('You can’t give that role.');
@@ -509,6 +533,35 @@ var ACTIONS = {
     return { ok: true };
   },
 
+  updateProfile: function (DB, r) {
+    var u = auth(DB, r.token), p = r.profile || {}, f = {};
+    if (p.name !== undefined) { f.name = str(p.name, 60); if (f.name.length < 2) fail('Enter your full name.'); }
+    if (p.jobTitle !== undefined) f.jobTitle = str(p.jobTitle, 60);
+    if (p.photo !== undefined) { f.photo = cleanImage(p.photo); f.photoV = String(Date.now()); }
+    DB.update('users', u.id, f);
+    return publicUser(DB.get('users', u.id));
+  },
+
+  photos: function (DB, r) {
+    var u = auth(DB, r.token), ids = r.ids || [], out = {};
+    DB.all('users').forEach(function (x) {
+      if (ids.indexOf(x.id) < 0) return;
+      if (!(isAdmin(u) || x.teamId === u.teamId)) return;
+      out[x.id] = { v: String(x.photoV || ''), data: x.photo || '' };
+    });
+    return out;
+  },
+
+  /* Several changes in one request, applied in order. Each change succeeds or fails on its own. */
+  batch: function (DB, r) {
+    auth(DB, r.token);
+    return (r.ops || []).slice(0, 100).map(function (op) {
+      if (!op || op.action === 'batch' || op.action === 'login' || op.action === 'signup') return { ok: false, error: 'Not allowed in a batch.' };
+      op.token = r.token;
+      return coreHandle(DB, op);
+    });
+  },
+
   /* ---------- properties & teams (main admin) ---------- */
   saveProperty: function (DB, r) {
     var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can add properties.');
@@ -516,11 +569,14 @@ var ACTIONS = {
     var name = str(r.property && r.property.name, 100);
     if (code.length < 3) fail('Property codes need at least 3 letters or numbers.');
     if (!name) fail('Enter the property name.');
+    var look = {};
+    if (r.property.color !== undefined) look.color = str(r.property.color, 20) || 'blue';
+    if (r.property.logo !== undefined) look.logo = cleanImage(r.property.logo);
     var ex = findProperty(DB, code);
-    if (ex) { DB.update('properties', ex.id, { name: name }); return DB.get('properties', ex.id); }
-    var p = { id: uid('h'), code: code, name: name, createdAt: nowISO() };
+    if (ex) { DB.update('properties', ex.id, Object.assign({ name: name }, look)); return publicProperty(DB.get('properties', ex.id)); }
+    var p = Object.assign({ id: uid('h'), code: code, name: name, color: 'blue', logo: '', createdAt: nowISO() }, look);
     DB.insert('properties', p);
-    return p;
+    return publicProperty(p);
   },
 
   saveTeam: function (DB, r) {
