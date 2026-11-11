@@ -1,0 +1,2114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orbit Projects</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Orbit">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:0}
+[hidden]{display:none!important}
+/* Layout concept: macOS Tahoe window on desktop (floating Liquid Glass sidebar · content · inspector),
+   iOS 27 on phones (large titles · floating glass tab bar · bottom sheets). Apple system colors & SF type. */
+:root{
+  --blue:#0088FF; --red:#FF383C; --orange:#FF8D28; --yellow:#FFCC00; --green:#34C759; --mint:#00C8B3;
+  --teal:#00C3D0; --cyan:#00C0E8; --indigo:#6155F5; --purple:#CB30E0; --pink:#FF2D55; --brown:#AC7F5E; --gray:#8E8E93;
+  --accent:var(--blue);
+  --bg:#F2F2F7; --bg2:#FFFFFF; --bg3:#F2F2F7; --elev:#FFFFFF;
+  --label:#000000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.3); --label4:rgba(60,60,67,.18);
+  --sep:rgba(60,60,67,.18); --sep-strong:rgba(60,60,67,.29);
+  --fill:rgba(120,120,128,.2); --fill2:rgba(120,120,128,.16); --fill3:rgba(118,118,128,.12); --fill4:rgba(116,116,128,.08);
+  --glass:rgba(255,255,255,.58); --glass-hi:rgba(255,255,255,.82); --glass-edge:rgba(255,255,255,.75);
+  --glass-shadow:0 10px 40px rgba(20,20,40,.12), 0 1px 2px rgba(20,20,40,.06);
+  --sidebar:rgba(240,240,246,.66);
+  --wall-a:rgba(0,136,255,.16); --wall-b:rgba(203,48,224,.12); --wall-c:rgba(0,200,179,.12);
+  --scrim:rgba(0,0,0,.22);
+  --on-accent:#FFFFFF;
+  --font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-display:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-round:ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif;
+  --r-xl:34px; --r-lg:26px; --r-md:18px; --r-sm:12px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --blue:#0091FF; --red:#FF4245; --orange:#FF9230; --yellow:#FFD600; --green:#30D158; --mint:#00DAC3;
+  --teal:#00D2E0; --cyan:#3CD3FE; --indigo:#6D7CFF; --purple:#DB34F2; --pink:#FF375F; --brown:#B78A66; --gray:#98989D;
+  --bg:#000000; --bg2:#1C1C1E; --bg3:#2C2C2E; --elev:#1C1C1E;
+  --label:#FFFFFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3); --label4:rgba(235,235,245,.16);
+  --sep:rgba(84,84,88,.45); --sep-strong:rgba(84,84,88,.65);
+  --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.32); --fill3:rgba(118,118,128,.24); --fill4:rgba(116,116,128,.18);
+  --glass:rgba(44,44,48,.55); --glass-hi:rgba(58,58,62,.78); --glass-edge:rgba(255,255,255,.12);
+  --glass-shadow:0 10px 40px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --sidebar:rgba(28,28,30,.66);
+  --wall-a:rgba(0,145,255,.18); --wall-b:rgba(219,52,242,.12); --wall-c:rgba(0,218,195,.10);
+  --scrim:rgba(0,0,0,.5);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --blue:#0091FF; --red:#FF4245; --orange:#FF9230; --yellow:#FFD600; --green:#30D158; --mint:#00DAC3;
+  --teal:#00D2E0; --cyan:#3CD3FE; --indigo:#6D7CFF; --purple:#DB34F2; --pink:#FF375F; --brown:#B78A66; --gray:#98989D;
+  --bg:#000000; --bg2:#1C1C1E; --bg3:#2C2C2E; --elev:#1C1C1E;
+  --label:#FFFFFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3); --label4:rgba(235,235,245,.16);
+  --sep:rgba(84,84,88,.45); --sep-strong:rgba(84,84,88,.65);
+  --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.32); --fill3:rgba(118,118,128,.24); --fill4:rgba(116,116,128,.18);
+  --glass:rgba(44,44,48,.55); --glass-hi:rgba(58,58,62,.78); --glass-edge:rgba(255,255,255,.12);
+  --glass-shadow:0 10px 40px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --sidebar:rgba(28,28,30,.66);
+  --wall-a:rgba(0,145,255,.18); --wall-b:rgba(219,52,242,.12); --wall-c:rgba(0,218,195,.10);
+  --scrim:rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--label);font-family:var(--font);font-size:15px;line-height:1.35;
+  -webkit-font-smoothing:antialiased;letter-spacing:-.01em;overflow:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px;border-radius:10px}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+svg.i.s{width:16px;height:16px}
+svg.i.xs{width:13px;height:13px;stroke-width:2.2}
+svg.i.l{width:24px;height:24px}
+.tnum{font-variant-numeric:tabular-nums}
+.muted{color:var(--label2)}
+.faint{color:var(--label3)}
+
+/* ---------- wallpaper ---------- */
+.wall{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(60vw 50vh at 8% 0%, var(--wall-a), transparent 70%),
+    radial-gradient(50vw 50vh at 100% 20%, var(--wall-b), transparent 70%),
+    radial-gradient(60vw 50vh at 40% 110%, var(--wall-c), transparent 70%), var(--bg)}
+
+/* ---------- glass ---------- */
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(190%);backdrop-filter:blur(28px) saturate(190%);
+  border:.5px solid var(--glass-edge);box-shadow:var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.35)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 16px;border-radius:999px;
+  font-weight:600;font-size:15px;white-space:nowrap;transition:transform .12s ease, background .2s, opacity .2s}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.tinted{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+.btn.gray{background:var(--fill3);color:var(--label)}
+.btn.plain{color:var(--accent);padding:0 8px}
+.btn.danger{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+.btn.large{height:50px;font-size:17px;padding:0 22px;width:100%}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.btn.glassy{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+  border:.5px solid var(--glass-edge);box-shadow:0 2px 12px rgba(0,0,0,.08);color:var(--label)}
+.ibtn{width:36px;height:36px;border-radius:50%;display:inline-grid;place-items:center;color:var(--label);transition:transform .12s, background .2s}
+.ibtn:hover{background:var(--fill4)}
+.ibtn:active{transform:scale(.92)}
+.ibtn.glassy{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+  border:.5px solid var(--glass-edge);box-shadow:0 2px 12px rgba(0,0,0,.08);width:44px;height:44px}
+.ibtn.accent{background:var(--accent);color:var(--on-accent)}
+.ibtn.accent:hover{background:var(--accent)}
+
+/* ---------- segmented ---------- */
+.seg{display:inline-flex;padding:2px;border-radius:999px;background:var(--fill3);gap:2px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{height:30px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--label);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--elev);box-shadow:0 2px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+.seg .count{font-size:11px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;display:inline-grid;place-items:center;padding:0 5px}
+
+/* ---------- grouped lists ---------- */
+.group{background:var(--bg2);border-radius:var(--r-lg);overflow:hidden}
+.group-title{font-size:13px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.04em;margin:22px 18px 7px;display:flex;align-items:center;gap:8px}
+.group-title .sp{flex:1}
+.group-foot{font-size:13px;color:var(--label2);margin:7px 18px 0}
+.row{display:flex;align-items:center;gap:12px;min-height:50px;padding:8px 16px;position:relative;width:100%;text-align:left}
+.row + .row::before{content:"";position:absolute;top:0;right:0;left:var(--inset,16px);border-top:.5px solid var(--sep)}
+button.row:hover,.row.tap:hover{background:var(--fill4)}
+.row .lbl{flex:1;min-width:0}
+.row .val{color:var(--label2);display:flex;align-items:center;gap:6px;text-align:right;min-width:0}
+.row .val span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .chev{color:var(--label3)}
+.ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;flex:none}
+.ico svg.i{width:17px;height:17px;stroke-width:2}
+
+/* ---------- inputs ---------- */
+.field{display:block;width:100%;height:50px;padding:0 16px;border-radius:var(--r-sm);border:0;background:var(--bg2);font-size:17px;outline:none}
+.field:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.field.gray{background:var(--fill4)}
+textarea.field{height:auto;min-height:90px;padding:12px 16px;resize:vertical;line-height:1.4}
+.inline-input{border:0;outline:none;background:transparent;width:100%;font-size:inherit;padding:0}
+select.sel{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--label2);text-align:right;text-align-last:right;
+  font-size:15px;padding-right:2px;outline:none;cursor:pointer;max-width:200px}
+input.date{border:0;background:var(--fill3);border-radius:8px;padding:5px 9px;font-size:15px;color:var(--label);outline:none}
+.label-sm{font-size:13px;color:var(--label2);margin:0 4px 6px;display:block}
+
+/* ---------- avatars & chips ---------- */
+.av{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none;
+  font-family:var(--font-round);letter-spacing:.02em;box-shadow:inset 0 -6px 12px rgba(0,0,0,.12)}
+.av.lg{width:44px;height:44px;font-size:16px}
+.av.xl{width:72px;height:72px;font-size:26px}
+.av.sm{width:22px;height:22px;font-size:9px}
+.avs{display:inline-flex}
+.avs .av{box-shadow:0 0 0 2px var(--bg2)}
+.avs .av + .av{margin-left:-7px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.badge{min-width:20px;height:20px;border-radius:10px;padding:0 6px;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:inline-grid;place-items:center}
+.badge.gray{background:var(--fill);color:var(--label2)}
+
+/* ---------- check circle (Reminders) ---------- */
+.check{width:24px;height:24px;border-radius:50%;border:1.6px solid var(--label3);display:grid;place-items:center;flex:none;color:transparent;transition:all .18s}
+.check:hover{border-color:var(--accent)}
+.check.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.check svg{width:14px;height:14px;stroke-width:3}
+.check.pop{animation:pop .35s ease}
+@keyframes pop{40%{transform:scale(1.25)}}
+
+/* ---------- app shell ---------- */
+#app{position:relative;z-index:1;height:100%}
+.shell{height:100%;display:grid;grid-template-rows:minmax(0,1fr);grid-template-columns:276px minmax(0,1fr);transition:grid-template-columns .3s ease}
+.shell.with-insp{grid-template-columns:276px minmax(0,1fr) 420px}
+.sidebar{margin:10px 0 10px 10px;border-radius:24px;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--sidebar);-webkit-backdrop-filter:blur(40px) saturate(190%);backdrop-filter:blur(40px) saturate(190%);
+  border:.5px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.sb-head{padding:16px 14px 8px;display:flex;align-items:center;gap:10px}
+.appmark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(150deg,var(--blue),var(--indigo));box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 6px rgba(0,0,0,.15)}
+.appmark svg{width:18px;height:18px;stroke-width:2.2}
+.sb-title{font-weight:700;font-size:16px;letter-spacing:-.02em}
+.sb-sub{font-size:12px;color:var(--label2)}
+.sb-scroll{flex:1;overflow:auto;padding:4px 10px 10px;scrollbar-width:thin}
+.sb-sec{font-size:12px;font-weight:600;color:var(--label2);padding:14px 10px 5px;display:flex;align-items:center;justify-content:space-between}
+.sb-item{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 10px;border-radius:10px;font-size:14px;text-align:left;color:var(--label)}
+.sb-item:hover{background:var(--fill4)}
+.sb-item.on{background:var(--fill2);font-weight:600}
+.sb-item .i{color:var(--accent)}
+.sb-item .n{margin-left:auto;font-size:13px;color:var(--label2)}
+.sb-item .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdot{width:12px;height:12px;border-radius:4px;flex:none}
+.scope{margin:2px 10px 4px;display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:10px;background:var(--fill4);font-size:13px;font-weight:600;width:calc(100% - 20px)}
+.scope .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.sb-foot{padding:10px;border-top:.5px solid var(--sep)}
+.me-btn{display:flex;align-items:center;gap:10px;width:100%;padding:6px;border-radius:12px;text-align:left}
+.me-btn:hover{background:var(--fill4)}
+.me-btn .nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-btn .jt{font-size:12px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.main{min-width:0;display:flex;flex-direction:column;height:100%;position:relative}
+.toolbar{display:flex;align-items:center;gap:10px;padding:14px 22px 10px;min-height:62px}
+.toolbar .tt{font-size:20px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+.toolbar .tt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:var(--fill3);width:220px;color:var(--label2)}
+.search input{border:0;outline:none;background:transparent;width:100%;font-size:14px;color:var(--label)}
+.scroll{flex:1;overflow:auto;padding:0 22px 40px;scroll-behavior:smooth}
+.page{max-width:980px;margin:0 auto}
+.page.wide{max-width:none}
+.large-title{font-family:var(--font-display);font-size:34px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:6px 4px 4px;text-wrap:balance}
+.subhead{color:var(--label2);margin:0 4px 18px;font-size:15px}
+.mob-only{display:none}
+.desk-only{}
+.scope-pill{display:none!important}
+
+/* ---------- home ---------- */
+.smart{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.smart button{background:var(--bg2);border-radius:20px;padding:12px 14px 14px;text-align:left;display:flex;flex-direction:column;gap:10px;transition:transform .15s}
+.smart button:active{transform:scale(.97)}
+.smart .top{display:flex;align-items:center;justify-content:space-between}
+.smart .ico{width:34px;height:34px;border-radius:50%}
+.smart .num{font-family:var(--font-round);font-size:28px;font-weight:700;line-height:1}
+.smart .nm{font-size:15px;font-weight:600;color:var(--label2)}
+.banner{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:20px;background:color-mix(in srgb,var(--orange) 14%,var(--bg2));margin-top:14px;width:100%;text-align:left}
+.banner .t{font-weight:600}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.pcard{background:var(--bg2);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px;text-align:left;min-width:0;transition:transform .15s, box-shadow .2s}
+.pcard:hover{box-shadow:0 6px 24px rgba(0,0,0,.08)}
+.pcard:active{transform:scale(.98)}
+.pcard .hd{display:flex;align-items:center;gap:10px;min-width:0}
+.pcard .nm{font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.picon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;font-size:19px;flex:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.picon.lg{width:52px;height:52px;border-radius:15px;font-size:26px}
+.bar{height:6px;border-radius:3px;background:var(--fill3);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px}
+.pcard .meta{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--label2);gap:8px}
+
+/* ---------- task rows ---------- */
+.trow{display:flex;align-items:flex-start;gap:12px;padding:11px 16px;position:relative;cursor:pointer;min-width:0}
+.trow + .trow::before{content:"";position:absolute;top:0;right:0;left:52px;border-top:.5px solid var(--sep)}
+.trow:hover{background:var(--fill4)}
+.trow.sel{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.trow .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.trow .ttl{font-size:16px;overflow-wrap:anywhere}
+.trow.done .ttl{color:var(--label3);text-decoration:line-through}
+.trow .sub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--label2)}
+.trow .sub span{display:inline-flex;align-items:center;gap:3px}
+.trow .right{display:flex;align-items:center;gap:8px;flex:none;padding-top:1px}
+.due.over{color:var(--red);font-weight:600}
+.due.today{color:var(--orange);font-weight:600}
+.flag{display:inline-flex}
+.addrow{display:flex;align-items:center;gap:12px;padding:10px 16px;color:var(--accent);position:relative}
+.addrow::before{content:"";position:absolute;top:0;right:0;left:52px;border-top:.5px solid var(--sep)}
+.addrow:first-child::before{display:none}
+.addrow input{border:0;outline:none;background:transparent;flex:1;font-size:16px;color:var(--label)}
+.addrow input::placeholder{color:var(--accent)}
+.sec-h{display:flex;align-items:center;gap:8px;margin:22px 6px 8px;font-weight:700;font-size:17px;width:calc(100% - 12px);text-align:left}
+.sec-h .n{color:var(--label2);font-weight:500;font-size:15px}
+.sec-h svg{transition:transform .2s;color:var(--label2)}
+.sec-h.closed svg{transform:rotate(-90deg)}
+.empty{padding:36px 20px;text-align:center;color:var(--label2);display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty .ico{width:52px;height:52px;border-radius:50%}
+.empty .ico svg.i{width:26px;height:26px}
+.empty b{color:var(--label);font-size:17px}
+
+/* ---------- project header & board ---------- */
+.phead{display:flex;align-items:center;gap:14px;margin:4px 4px 14px;flex-wrap:wrap}
+.phead .info{flex:1;min-width:200px}
+.phead h1{font-family:var(--font-display);font-size:28px;font-weight:700;letter-spacing:-.025em;margin:0;line-height:1.15;overflow-wrap:anywhere}
+.phead .desc{color:var(--label2);margin-top:3px;font-size:14px}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 4px 6px}
+.controls .sp{flex:1}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(270px,1fr);gap:14px;overflow-x:auto;padding:6px 2px 20px;align-items:start}
+.col{background:var(--fill4);border-radius:22px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px;transition:background .2s}
+.col.drop{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.col-h{display:flex;align-items:center;gap:8px;padding:4px 6px 2px;font-weight:700;font-size:15px}
+.col-h .n{color:var(--label2);font-weight:500}
+.card{background:var(--bg2);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.05);
+  transition:transform .15s, box-shadow .2s;min-width:0}
+.card:hover{box-shadow:0 6px 20px rgba(0,0,0,.08)}
+.card.dragging{opacity:.5;transform:rotate(2deg)}
+.card .ttl{font-weight:600;font-size:15px;overflow-wrap:anywhere}
+.card.done .ttl{color:var(--label3);text-decoration:line-through}
+.card .ft{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--label2);flex-wrap:wrap}
+.card .ft .sp{flex:1}
+.col .addcard{display:flex;align-items:center;gap:6px;color:var(--label2);font-size:14px;font-weight:600;padding:8px;border-radius:12px}
+.col .addcard:hover{background:var(--fill4);color:var(--accent)}
+
+/* ---------- inspector / task detail ---------- */
+.insp{min-width:0;height:100%;display:flex;flex-direction:column;background:var(--bg);border-left:.5px solid var(--sep);position:relative;z-index:5}
+.insp-bar{display:flex;align-items:center;gap:8px;padding:12px 14px;min-height:60px}
+.insp-bar .sp{flex:1}
+.insp-scroll{flex:1;overflow:auto;padding:0 16px 24px}
+.ttl-edit{width:100%;border:0;outline:none;background:transparent;font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-.02em;
+  resize:none;line-height:1.2;padding:4px 4px;overflow:hidden;border-radius:8px}
+.ttl-edit:focus{background:var(--fill4)}
+.crumb{font-size:13px;color:var(--label2);margin:0 4px 4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.crumb button{color:var(--accent);font-weight:600}
+.notes{width:100%;border:0;outline:none;background:var(--bg2);border-radius:var(--r-lg);padding:14px 16px;min-height:96px;resize:vertical;font-size:15px;line-height:1.45}
+.sub-row{display:flex;align-items:center;gap:12px;padding:9px 16px;position:relative}
+.sub-row + .sub-row::before,.sub-row + .addrow::before{content:"";position:absolute;top:0;right:0;left:52px;border-top:.5px solid var(--sep)}
+.sub-row .t{flex:1;min-width:0;overflow-wrap:anywhere;cursor:pointer}
+.sub-row.done .t{color:var(--label3);text-decoration:line-through}
+.file{display:flex;align-items:center;gap:12px;padding:10px 16px;position:relative;min-width:0}
+.file + .file::before{content:"";position:absolute;top:0;right:0;left:58px;border-top:.5px solid var(--sep)}
+.file .ft{width:32px;height:38px;border-radius:7px;display:grid;place-items:center;color:#fff;font-size:9px;font-weight:800;flex:none;letter-spacing:.03em}
+.file .nm{flex:1;min-width:0}
+.file .nm a{color:var(--label);text-decoration:none;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .nm a:hover{color:var(--accent)}
+.file .nm small{color:var(--label2);font-size:12px}
+.thread{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.cmt{display:flex;gap:10px;min-width:0}
+.cmt .bubble{background:var(--bg2);border-radius:18px;border-top-left-radius:6px;padding:9px 13px;min-width:0;flex:1}
+.cmt .who{font-size:13px;font-weight:700;display:flex;gap:8px;align-items:baseline}
+.cmt .who time{font-weight:400;color:var(--label2);font-size:12px}
+.cmt .tx{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
+.cmt .del{color:var(--label3);font-size:12px;margin-left:auto}
+.cmt.mine .bubble{background:color-mix(in srgb,var(--accent) 12%,var(--bg2))}
+.composer{padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;align-items:flex-end;border-top:.5px solid var(--sep);background:var(--bg)}
+.composer textarea{flex:1;border:.5px solid var(--sep-strong);background:var(--bg2);border-radius:20px;padding:9px 14px;min-height:40px;max-height:140px;resize:none;outline:none;font-size:15px;line-height:1.35}
+.composer .ibtn{width:40px;height:40px}
+.meta-line{font-size:12px;color:var(--label3);margin:18px 4px 0;text-align:center}
+
+/* ---------- people ---------- */
+.person{display:flex;align-items:center;gap:12px;padding:10px 16px;position:relative;width:100%;text-align:left;min-width:0}
+.person + .person::before{content:"";position:absolute;top:0;right:0;left:68px;border-top:.5px solid var(--sep)}
+.person:hover{background:var(--fill4)}
+.person .who{flex:1;min-width:0}
+.person .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.person .jt{font-size:13px;color:var(--label2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.person .acts{display:flex;gap:8px;flex:none}
+.role-head{background:color-mix(in srgb,var(--indigo) 15%,transparent);color:var(--indigo)}
+.role-admin{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
+.role-member{background:var(--fill3);color:var(--label2)}
+.role-pending{background:color-mix(in srgb,var(--yellow) 22%,transparent);color:color-mix(in srgb,var(--orange) 80%,var(--label))}
+.role-disabled{background:var(--fill3);color:var(--label3)}
+
+/* ---------- activity ---------- */
+.act{display:flex;gap:12px;padding:11px 16px;position:relative;align-items:flex-start;cursor:pointer;width:100%;text-align:left}
+.act + .act::before{content:"";position:absolute;top:0;right:0;left:56px;border-top:.5px solid var(--sep)}
+.act:hover{background:var(--fill4)}
+.act .tx{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere}
+.act time{font-size:12px;color:var(--label2);flex:none}
+.act.me .tx b{color:var(--accent)}
+
+/* ---------- auth ---------- */
+.auth{height:100%;overflow:auto;display:flex;align-items:flex-start;justify-content:center;
+  padding-block:max(40px,6vh) 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.auth-card{width:100%;max-width:420px;border-radius:var(--r-xl);padding:28px 22px 22px;display:flex;flex-direction:column;gap:14px}
+.auth-hero{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:6px 0 4px}
+.app-icon{width:84px;height:84px;border-radius:22px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(150deg,#3AA0FF,var(--blue) 45%,var(--indigo));box-shadow:0 10px 30px color-mix(in srgb,var(--blue) 35%,transparent),inset 0 1px 0 rgba(255,255,255,.45)}
+.app-icon svg{width:46px;height:46px;stroke-width:2}
+.auth h1{font-family:var(--font-display);font-size:28px;font-weight:700;letter-spacing:-.025em;margin:0}
+.auth p{margin:0;color:var(--label2)}
+.auth .back{align-self:flex-start;margin:-8px 0 -4px -6px}
+.auth .err{color:var(--red);font-size:14px;text-align:center;min-height:0}
+.auth .fine{font-size:13px;color:var(--label2);text-align:center}
+.auth .demo{font-size:13px;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--label);border-radius:16px;padding:10px 14px;line-height:1.45}
+.auth .demo code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--fill3);padding:1px 5px;border-radius:5px}
+.pin{display:flex;justify-content:center;gap:18px;padding:8px 0;position:relative;cursor:text}
+.pin i{width:16px;height:16px;border-radius:50%;border:1.6px solid var(--label3);transition:all .15s}
+.pin i.on{background:var(--label);border-color:var(--label)}
+.pin.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
+.pin input{position:absolute;inset:0;opacity:0;width:100%;font-size:16px}
+.pin-wrap{background:var(--bg2);border-radius:var(--r-sm);padding:12px 16px 14px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pin-wrap .label-sm{margin:0}
+.teamlist .row{min-height:48px}
+.teamlist .tick{color:var(--accent);visibility:hidden}
+.teamlist .row.on .tick{visibility:visible}
+.fields{display:flex;flex-direction:column;gap:8px}
+
+/* ---------- overlays ---------- */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:80;animation:fade .2s ease}
+@keyframes fade{from{opacity:0}}
+.dialog{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:81;width:min(560px,calc(100vw - 32px));max-height:min(86vh,760px);
+  border-radius:var(--r-xl);display:flex;flex-direction:column;overflow:hidden;background:var(--bg);box-shadow:0 30px 80px rgba(0,0,0,.3);
+  animation:dlg .28s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes dlg{from{transform:translate(-50%,-46%) scale(.96);opacity:0}}
+.dlg-bar{display:flex;align-items:center;gap:8px;padding:12px 14px;min-height:60px}
+.dlg-bar h2{flex:1;text-align:center;font-size:17px;font-weight:700;margin:0}
+.dlg-body{overflow:auto;padding:0 18px 22px}
+.alert{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:91;width:min(320px,calc(100vw - 48px));border-radius:var(--r-xl);
+  padding:22px 18px 16px;display:flex;flex-direction:column;gap:6px;text-align:center;animation:dlg .25s cubic-bezier(.2,.9,.3,1.1)}
+.alert h3{margin:0;font-size:17px}
+.alert p{margin:0 0 10px;font-size:14px;color:var(--label2)}
+.alert .btns{display:flex;gap:8px}
+.alert .btns .btn{flex:1;height:44px}
+.alert-scrim{z-index:90}
+.menu{position:fixed;z-index:95;min-width:220px;max-width:300px;border-radius:20px;padding:6px;display:flex;flex-direction:column;max-height:60vh;overflow:auto;
+  animation:menu .18s ease;transform-origin:top left}
+@keyframes menu{from{opacity:0;transform:scale(.94)}}
+.menu button{display:flex;align-items:center;gap:10px;min-height:38px;padding:6px 12px;border-radius:12px;text-align:left;font-size:15px}
+.menu button:hover{background:var(--fill3)}
+.menu button.danger{color:var(--red)}
+.menu .tick{width:18px;color:var(--accent);flex:none;display:grid;place-items:center}
+.menu hr{border:0;border-top:.5px solid var(--sep);margin:4px 8px}
+.menu .mlbl{flex:1;min-width:0}
+.menu .mh{font-size:12px;color:var(--label2);padding:6px 12px 2px;font-weight:600}
+.toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:99;border-radius:999px;
+  padding:11px 18px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;animation:toast .3s ease;max-width:calc(100vw - 32px)}
+@keyframes toast{from{opacity:0;transform:translate(-50%,10px)}}
+.toast.err{color:var(--red)}
+.mobile-scrim{display:none}
+.spin{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--fill);border-top-color:var(--accent);animation:sp .8s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loading{height:100%;display:grid;place-items:center}
+.swatches{display:flex;gap:10px;flex-wrap:wrap;padding:12px 16px}
+.swatches button{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(0,0,0,.06)}
+.swatches button.on{box-shadow:0 0 0 2px var(--bg2),0 0 0 4px var(--label3)}
+.emojis{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 12px}
+.emojis button{width:38px;height:38px;border-radius:10px;font-size:20px;display:grid;place-items:center}
+.emojis button.on{background:var(--fill2)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--sep);border-radius:22px;overflow:hidden}
+.cal .d{background:var(--bg2);min-height:104px;padding:6px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal .d.out{background:color-mix(in srgb,var(--bg2) 60%,var(--bg))}
+.cal .d .n{font-size:13px;font-weight:600;color:var(--label2);width:24px;height:24px;display:grid;place-items:center;border-radius:50%}
+.cal .d.today .n{background:var(--red);color:#fff}
+.cal .wd{background:var(--bg2);text-align:center;font-size:12px;font-weight:600;color:var(--label2);padding:8px 0}
+.cal .ev{font-size:12px;padding:2px 6px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-weight:600;text-align:left}
+.cal .more{font-size:11px;color:var(--label2);padding-left:4px}
+
+/* ---------- mobile (iOS) ---------- */
+.tabbar{display:none}
+@media (max-width: 899px){
+  body{font-size:16px}
+  .shell,.shell.with-insp{grid-template-columns:minmax(0,1fr)}
+  .sidebar{display:none}
+  .toolbar{padding:8px max(12px,env(safe-area-inset-left,0px)) 4px;min-height:56px;position:relative;z-index:3}
+  .toolbar .tt{font-size:17px;justify-content:center;opacity:0;transition:opacity .2s}
+  .toolbar.scrolled .tt{opacity:1}
+  .search.desk{display:none}
+  .mob-only{display:inline-grid}
+  .desk-only{display:none}
+  .scope-pill{display:inline-flex!important}
+  .person:has(.acts){flex-wrap:wrap}
+  .person .acts{width:100%;padding-left:56px}
+  .person .acts .btn{flex:1}
+  .scroll{padding:0 max(16px,env(safe-area-inset-right,0px)) calc(120px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .smart{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;align-items:center;justify-content:center;gap:10px;pointer-events:none;
+    padding:0 max(14px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
+  .tabbar > *{pointer-events:auto}
+  .tabs{display:flex;align-items:center;border-radius:999px;padding:4px;flex:1;max-width:400px;height:64px}
+  .tabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:56px;border-radius:999px;
+    font-size:10px;font-weight:600;color:var(--label);position:relative;transition:background .25s,color .2s}
+  .tabs button.on{background:var(--fill3);color:var(--accent)}
+  .tabs button svg.i{width:24px;height:24px}
+  .tabs .badge{position:absolute;top:4px;left:calc(50% + 6px);height:17px;min-width:17px;font-size:11px;padding:0 4px}
+  .fab{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;color:var(--accent);flex:none}
+  .fab svg.i{width:26px;height:26px;stroke-width:2.2}
+  .insp{position:fixed;left:0;right:0;bottom:0;top:calc(10px + env(safe-area-inset-top,0px));z-index:70;border-radius:var(--r-xl) var(--r-xl) 0 0;
+    border-left:0;box-shadow:0 -10px 40px rgba(0,0,0,.2);animation:sheet .35s cubic-bezier(.2,.9,.3,1)}
+  .insp::before{content:"";position:absolute;top:6px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--fill)}
+  @keyframes sheet{from{transform:translateY(100%)}}
+  .mobile-scrim{display:block;position:fixed;inset:0;background:var(--scrim);z-index:69;animation:fade .25s}
+  .dialog{left:0;right:0;bottom:0;top:auto;transform:none;width:auto;max-height:calc(100% - 20px - env(safe-area-inset-top,0px));
+    border-radius:var(--r-xl) var(--r-xl) 0 0;animation:sheet .35s cubic-bezier(.2,.9,.3,1);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .board{grid-auto-columns:minmax(80vw,1fr);scroll-snap-type:x mandatory;margin:0 -16px;padding:6px 16px 20px}
+  .col{scroll-snap-align:center}
+  .cal .d{min-height:64px;padding:3px}
+  .cal .ev{font-size:10px;padding:1px 3px}
+  .phead h1{font-size:26px}
+  .search{width:100%}
+}
+@media (min-width: 900px) and (max-width: 1180px){
+  .shell.with-insp{grid-template-columns:240px minmax(0,1fr) 380px}
+  .shell{grid-template-columns:240px minmax(0,1fr)}
+  .smart{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .search.desk{width:170px}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+
+</style>
+</head>
+<body>
+<div class="wall" aria-hidden="true"></div>
+<div id="app"></div>
+<div id="ov"></div><div id="menu"></div><div id="alert"></div><div id="toast" aria-live="polite"></div>
+<script>
+/* =====================================================================
+   ORBIT CORE — shared business logic.
+   The same code runs in the browser (demo mode, data on this device)
+   and inside Google Apps Script (live mode, data in Google Sheets).
+   A storage adapter "DB" is passed in with:
+     all(t) get(t,id) find(t,fn) insert(t,o) update(t,id,patch) remove(t,id)
+     saveFile(name,type,base64) -> {url,fileId}
+   ===================================================================== */
+
+var TABLES = {
+  properties: ['id','code','name','createdAt'],
+  teams:      ['id','propertyCode','name','color','createdAt'],
+  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt'],
+  sessions:   ['id','userId','createdAt','lastSeen'],
+  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
+  tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
+  comments:   ['id','teamId','taskId','userId','text','createdAt'],
+  activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
+};
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1 };
+var STATUSES = ['todo','doing','review','done'];
+var PRIORITIES = ['none','low','medium','high','urgent'];
+var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
+var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
+var MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+function sha256(ascii) {
+  function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+  var mp = Math.pow, maxWord = mp(2, 32), i, j, result = '';
+  var words = [], bitLen = ascii.length * 8;
+  var hash = [], k = [], pc = 0, isComposite = {};
+  for (var c = 2; pc < 64; c++) {
+    if (!isComposite[c]) {
+      for (i = 0; i < 313; i += c) isComposite[i] = c;
+      hash[pc] = (mp(c, .5) * maxWord) | 0;
+      k[pc++] = (mp(c, 1 / 3) * maxWord) | 0;
+    }
+  }
+  hash = hash.slice(0, 8);
+  ascii += '\x80';
+  while (ascii.length % 64 - 56) ascii += '\x00';
+  for (i = 0; i < ascii.length; i++) {
+    j = ascii.charCodeAt(i);
+    if (j >> 8) return '';
+    words[i >> 2] |= j << ((3 - i) % 4) * 8;
+  }
+  words[words.length] = ((bitLen / maxWord) | 0);
+  words[words.length] = (bitLen);
+  for (j = 0; j < words.length;) {
+    var w = words.slice(j, j += 16), old = hash;
+    hash = hash.slice(0, 8);
+    for (i = 0; i < 64; i++) {
+      var w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+      var t1 = hash[7] + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & hash[5]) ^ ((~e) & hash[6])) + k[i] +
+        (w[i] = (i < 16) ? w[i] : (w[i - 16] + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0);
+      var t2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash = [(t1 + t2) | 0].concat(hash);
+      hash[4] = (hash[4] + t1) | 0;
+    }
+    for (i = 0; i < 8; i++) hash[i] = (hash[i] + old[i]) | 0;
+  }
+  for (i = 0; i < 8; i++) for (j = 3; j + 1; j--) { var b = (hash[i] >> (j * 8)) & 255; result += ((b < 16) ? 0 : '') + b.toString(16); }
+  return result;
+}
+
+function uid(p) { return (p || '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
+function nowISO() { return new Date().toISOString(); }
+function fail(m) { throw new Error(m); }
+function str(v, max) { v = (v == null ? '' : String(v)).trim(); return max ? v.slice(0, max) : v; }
+function lc(v) { return str(v).toLowerCase(); }
+function truthy(v) { return v === true || v === 'true' || v === 1 || v === '1'; }
+function pinHash(salt, username, pin) { return sha256(String(salt) + '|' + lc(username) + '|' + String(pin)); }
+function makeToken() { return 't' + sha256(uid() + Math.random() + Date.now()).slice(0, 40); }
+
+function publicUser(u) {
+  return { id: u.id, propertyCode: u.propertyCode, teamId: u.teamId, username: u.username, name: u.name,
+    jobTitle: u.jobTitle, role: u.role, status: u.status, avatarColor: u.avatarColor, createdAt: u.createdAt,
+    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '' };
+}
+function isAdmin(u) { return u.role === 'admin'; }
+function canSeeTeam(u, teamId) { return isAdmin(u) || u.teamId === teamId; }
+function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && u.teamId === teamId); }
+function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
+
+function auth(DB, token) {
+  if (!token) fail('AUTH');
+  var s = DB.get('sessions', token);
+  if (!s) fail('AUTH');
+  var u = DB.get('users', s.userId);
+  if (!u || u.status !== 'active') fail('AUTH');
+  return u;
+}
+function log(DB, u, teamId, type, refId, text, targets) {
+  DB.insert('activity', { id: uid('a'), teamId: teamId, userId: u.id, type: type, refId: refId || '', text: text,
+    targets: (targets || []).filter(function (t) { return t && t !== u.id; }), createdAt: nowISO() });
+}
+function headsOf(DB, teamId) {
+  return DB.all('users').filter(function (x) { return x.status === 'active' && (x.role === 'admin' || (x.role === 'head' && x.teamId === teamId)); })
+    .map(function (x) { return x.id; });
+}
+function taskOrFail(DB, u, id) {
+  var t = DB.get('tasks', id);
+  if (!t || !canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
+  return t;
+}
+
+var ACTIONS = {
+  /* ---------- public: no login needed ---------- */
+  teams: function (DB, r) {
+    var p = findProperty(DB, r.propertyCode);
+    if (!p) fail('We could not find property code "' + str(r.propertyCode).toUpperCase() + '". Check the code with your department head.');
+    var teams = DB.all('teams').filter(function (t) { return t.propertyCode === p.code; })
+      .map(function (t) { return { id: t.id, name: t.name, color: t.color }; })
+      .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    return { property: { code: p.code, name: p.name }, teams: teams };
+  },
+
+  signup: function (DB, r) {
+    var p = findProperty(DB, r.propertyCode);
+    if (!p) fail('Unknown property code.');
+    var team = DB.get('teams', r.teamId);
+    if (!team || team.propertyCode !== p.code) fail('Choose a team for this property.');
+    var name = str(r.name, 60), username = lc(r.username), jobTitle = str(r.jobTitle, 60), pin = str(r.pin);
+    if (name.length < 2) fail('Enter your full name.');
+    if (!/^[a-z0-9._-]{3,20}$/.test(username)) fail('Username must be 3–20 letters, numbers, dots or dashes.');
+    if (!/^\d{4}$/.test(pin)) fail('Your PIN must be exactly 4 digits.');
+    var taken = DB.find('users', function (x) { return x.propertyCode === p.code && lc(x.username) === username; });
+    if (taken) fail('That username is already taken at ' + p.code + '. Try another.');
+    var salt = uid('s');
+    var u = { id: uid('u'), propertyCode: p.code, teamId: team.id, username: username, name: name, jobTitle: jobTitle,
+      role: 'member', status: 'pending', pinHash: pinHash(salt, username, pin), salt: salt, failed: 0, lockedUntil: '',
+      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)], createdAt: nowISO(), approvedBy: '', approvedAt: '' };
+    DB.insert('users', u);
+    DB.insert('activity', { id: uid('a'), teamId: team.id, userId: u.id, type: 'signup', refId: u.id,
+      text: 'asked to join ' + team.name, targets: headsOf(DB, team.id), createdAt: nowISO() });
+    return { status: 'pending', team: team.name, property: p.code };
+  },
+
+  login: function (DB, r) {
+    var p = findProperty(DB, r.propertyCode);
+    var username = lc(r.username), pin = str(r.pin);
+    if (!p) fail('Unknown property code.');
+    var u = DB.find('users', function (x) { return x.propertyCode === p.code && lc(x.username) === username; });
+    if (!u) fail('Username or PIN is incorrect.');
+    if (u.lockedUntil && new Date(u.lockedUntil) > new Date()) fail('Too many wrong PINs. Try again after 15 minutes, or ask your department head to reset your PIN.');
+    if (pinHash(u.salt, u.username, pin) !== u.pinHash) {
+      var f = (Number(u.failed) || 0) + 1;
+      DB.update('users', u.id, { failed: f, lockedUntil: f >= 5 ? new Date(Date.now() + 15 * 60000).toISOString() : '' });
+      fail(f >= 5 ? 'Too many wrong PINs. Your account is locked for 15 minutes.' : 'Username or PIN is incorrect.');
+    }
+    if (u.status === 'pending') fail('PENDING');
+    if (u.status === 'disabled') fail('Your account has been turned off. Contact your department head.');
+    DB.update('users', u.id, { failed: 0, lockedUntil: '' });
+    var token = makeToken();
+    DB.insert('sessions', { id: token, userId: u.id, createdAt: nowISO(), lastSeen: nowISO() });
+    return { token: token, user: publicUser(u) };
+  },
+
+  logout: function (DB, r) {
+    if (r.token && DB.get('sessions', r.token)) DB.remove('sessions', r.token);
+    return { ok: true };
+  },
+
+  /* ---------- everything the signed-in person can see ---------- */
+  sync: function (DB, r) {
+    var u = auth(DB, r.token);
+    var admin = isAdmin(u);
+    var teams = DB.all('teams').filter(function (t) { return admin || t.id === u.teamId; });
+    var teamIds = {}; teams.forEach(function (t) { teamIds[t.id] = 1; });
+    var inScope = function (x) { return !!teamIds[x.teamId]; };
+    var users = DB.all('users').filter(function (x) {
+      if (admin) return true;
+      if (x.teamId !== u.teamId) return false;
+      return x.status === 'active' || u.role === 'head';
+    }).map(publicUser);
+    var activity = DB.all('activity').filter(inScope)
+      .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
+    return {
+      me: publicUser(u),
+      properties: DB.all('properties').filter(function (p) { return admin || p.code === u.propertyCode; })
+        .map(function (p) { return { id: p.id, code: p.code, name: p.name }; }),
+      teams: teams, users: users,
+      projects: DB.all('projects').filter(inScope),
+      tasks: DB.all('tasks').filter(inScope),
+      comments: DB.all('comments').filter(inScope),
+      activity: activity,
+      serverTime: nowISO()
+    };
+  },
+
+  /* ---------- projects ---------- */
+  saveProject: function (DB, r) {
+    var u = auth(DB, r.token), p = r.project || {};
+    var fields = { name: str(p.name, 80), color: str(p.color, 20) || 'blue', icon: str(p.icon, 8), description: str(p.description, 2000),
+      ownerId: str(p.ownerId), status: PROJECT_STATUSES.indexOf(p.status) >= 0 ? p.status : 'on_track', due: str(p.due, 10),
+      archived: truthy(p.archived), updatedAt: nowISO() };
+    if (!fields.name) fail('Give the project a name.');
+    var existing = p.id ? DB.get('projects', p.id) : null;
+    if (existing) {
+      if (!canSeeTeam(u, existing.teamId)) fail('You can’t edit this project.');
+      DB.update('projects', existing.id, fields);
+      return DB.get('projects', existing.id);
+    }
+    var teamId = isAdmin(u) && p.teamId ? p.teamId : u.teamId;
+    if (!DB.get('teams', teamId)) fail('Choose a team for this project.');
+    var obj = Object.assign({ id: uid('p'), teamId: teamId, createdBy: u.id, createdAt: nowISO() }, fields);
+    if (!obj.ownerId) obj.ownerId = u.id;
+    DB.insert('projects', obj);
+    log(DB, u, teamId, 'project', obj.id, 'created the project ' + obj.name, []);
+    return obj;
+  },
+
+  deleteProject: function (DB, r) {
+    var u = auth(DB, r.token), p = DB.get('projects', r.id);
+    if (!p || !canSeeTeam(u, p.teamId)) fail('That project no longer exists.');
+    if (!(canManageTeam(u, p.teamId) || p.createdBy === u.id)) fail('Only the person who created this project or a department head can delete it.');
+    DB.all('tasks').filter(function (t) { return t.projectId === p.id; }).forEach(function (t) {
+      DB.all('comments').filter(function (c) { return c.taskId === t.id; }).forEach(function (c) { DB.remove('comments', c.id); });
+      DB.remove('tasks', t.id);
+    });
+    DB.remove('projects', p.id);
+    log(DB, u, p.teamId, 'project', '', 'deleted the project ' + p.name, []);
+    return { ok: true };
+  },
+
+  /* ---------- tasks & subtasks ---------- */
+  saveTask: function (DB, r) {
+    var u = auth(DB, r.token), t = r.task || {};
+    var existing = t.id ? DB.get('tasks', t.id) : null;
+    if (existing) { if (!canSeeTeam(u, existing.teamId)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
+    var base = existing || {};
+    var projectId = t.projectId !== undefined ? str(t.projectId) : base.projectId;
+    var project = projectId ? DB.get('projects', projectId) : null;
+    if (projectId && (!project || !canSeeTeam(u, project.teamId))) fail('Choose a project you belong to.');
+    var parent = t.parentId || base.parentId ? DB.get('tasks', t.parentId || base.parentId) : null;
+    var teamId = project ? project.teamId : (parent ? parent.teamId : (existing ? existing.teamId : u.teamId));
+    if (isAdmin(u) && !project && !parent && !existing && t.teamId) teamId = t.teamId;
+    if (!canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
+    var team = DB.all('users').filter(function (x) { return x.teamId === teamId && x.status === 'active'; }).map(function (x) { return x.id; });
+    var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
+
+    var f = {};
+    if (t.title !== undefined) f.title = str(t.title, 300);
+    if (t.notes !== undefined) f.notes = str(t.notes, 10000);
+    if (t.status !== undefined) f.status = STATUSES.indexOf(t.status) >= 0 ? t.status : 'todo';
+    if (t.priority !== undefined) f.priority = PRIORITIES.indexOf(t.priority) >= 0 ? t.priority : 'none';
+    if (t.due !== undefined) f.due = str(t.due, 10);
+    if (t.order !== undefined) f.order = Number(t.order) || 0;
+    if (t.projectId !== undefined) f.projectId = projectId || '';
+    if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
+    f.teamId = teamId; f.updatedAt = nowISO();
+    if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : '';
+
+    if (existing) {
+      if (f.title === '') fail('A task needs a title.');
+      DB.update('tasks', existing.id, f);
+      var after = DB.get('tasks', existing.id);
+      var added = (f.assignees || []).filter(function (id) { return (existing.assignees || []).indexOf(id) < 0; });
+      if (added.length) log(DB, u, teamId, 'assign', existing.id, 'assigned “' + after.title + '”', added);
+      if (f.status && f.status !== existing.status && f.status === 'done')
+        log(DB, u, teamId, 'complete', existing.id, 'completed “' + after.title + '”', [after.createdBy].concat(after.assignees || []));
+      return after;
+    }
+    if (!f.title) fail('A task needs a title.');
+    var obj = Object.assign({ id: uid('t'), parentId: parent ? parent.id : '', projectId: projectId || '', notes: '', status: 'todo',
+      priority: 'none', assignees: [], due: '', order: Date.now(), attachments: [], completedAt: '',
+      createdBy: u.id, createdAt: nowISO() }, f);
+    DB.insert('tasks', obj);
+    if ((obj.assignees || []).length) log(DB, u, teamId, 'assign', obj.id, 'assigned “' + obj.title + '”', obj.assignees);
+    else if (!parent) log(DB, u, teamId, 'task', obj.id, 'added “' + obj.title + '”', []);
+    return obj;
+  },
+
+  deleteTask: function (DB, r) {
+    var u = auth(DB, r.token), t = taskOrFail(DB, u, r.id);
+    if (!(canManageTeam(u, t.teamId) || t.createdBy === u.id)) fail('Only the person who created this task or a department head can delete it.');
+    var kill = function (id) {
+      DB.all('tasks').filter(function (x) { return x.parentId === id; }).forEach(function (x) { kill(x.id); });
+      DB.all('comments').filter(function (c) { return c.taskId === id; }).forEach(function (c) { DB.remove('comments', c.id); });
+      DB.remove('tasks', id);
+    };
+    kill(t.id);
+    return { ok: true };
+  },
+
+  addComment: function (DB, r) {
+    var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId), text = str(r.text, 4000);
+    if (!text) fail('Write a comment first.');
+    var c = { id: uid('c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO() };
+    DB.insert('comments', c);
+    log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    return c;
+  },
+
+  deleteComment: function (DB, r) {
+    var u = auth(DB, r.token), c = DB.get('comments', r.id);
+    if (!c) return { ok: true };
+    if (!(c.userId === u.id || canManageTeam(u, c.teamId))) fail('You can only delete your own comments.');
+    DB.remove('comments', c.id);
+    return { ok: true };
+  },
+
+  upload: function (DB, r) {
+    var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId);
+    var data = String(r.data || '');
+    if (!data) fail('No file received.');
+    if (data.length * 0.75 > MAX_UPLOAD_BYTES) fail('Files can be up to 10 MB.');
+    var name = str(r.name, 120) || 'file';
+    var saved = DB.saveFile(name, str(r.type, 100) || 'application/octet-stream', data);
+    var att = { id: uid('f'), name: name, type: str(r.type, 100), size: Number(r.size) || Math.round(data.length * 0.75),
+      url: saved.url, fileId: saved.fileId || '', by: u.id, at: nowISO() };
+    var list = (t.attachments || []).concat([att]);
+    DB.update('tasks', t.id, { attachments: list, updatedAt: nowISO() });
+    log(DB, u, t.teamId, 'file', t.id, 'attached ' + name + ' to “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    return att;
+  },
+
+  removeAttachment: function (DB, r) {
+    var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId);
+    var att = (t.attachments || []).filter(function (a) { return a.id === r.attId; })[0];
+    if (!att) return { ok: true };
+    if (!(att.by === u.id || canManageTeam(u, t.teamId))) fail('Only the person who added this file or a department head can remove it.');
+    DB.update('tasks', t.id, { attachments: (t.attachments || []).filter(function (a) { return a.id !== r.attId; }) });
+    return { ok: true };
+  },
+
+  /* ---------- people & approvals ---------- */
+  updateUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId), patch = r.patch || {};
+    if (!target) fail('That person no longer exists.');
+    if (!canManageTeam(u, target.teamId)) fail('Only the main admin or this team’s department head can change this.');
+    if (target.role === 'admin' && !isAdmin(u)) fail('You can’t change the main admin.');
+    var f = {};
+    if (patch.name !== undefined) f.name = str(patch.name, 60) || target.name;
+    if (patch.jobTitle !== undefined) f.jobTitle = str(patch.jobTitle, 60);
+    if (patch.role !== undefined) {
+      var allowed = isAdmin(u) ? ['member', 'head', 'admin'] : ['member', 'head'];
+      if (allowed.indexOf(patch.role) < 0) fail('You can’t give that role.');
+      if (target.id === u.id && patch.role !== u.role) fail('You can’t change your own role.');
+      f.role = patch.role;
+    }
+    if (patch.teamId !== undefined && patch.teamId !== target.teamId) {
+      if (!isAdmin(u)) fail('Only the main admin can move people between teams.');
+      var nt = DB.get('teams', patch.teamId); if (!nt) fail('Choose a team.');
+      f.teamId = nt.id; f.propertyCode = nt.propertyCode;
+    }
+    if (patch.status !== undefined) {
+      if (['active', 'disabled'].indexOf(patch.status) < 0) fail('Unknown status.');
+      if (target.id === u.id) fail('You can’t turn off your own account.');
+      f.status = patch.status;
+      if (patch.status === 'active' && target.status === 'pending') { f.approvedBy = u.id; f.approvedAt = nowISO(); }
+    }
+    DB.update('users', target.id, f);
+    if (f.status === 'active' && target.status === 'pending')
+      log(DB, u, f.teamId || target.teamId, 'approved', target.id, 'approved ' + target.name + ' to join the team', [target.id]);
+    if (f.status === 'disabled') DB.all('sessions').filter(function (s) { return s.userId === target.id; }).forEach(function (s) { DB.remove('sessions', s.id); });
+    return publicUser(DB.get('users', target.id));
+  },
+
+  removeUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId);
+    if (!target) return { ok: true };
+    if (target.id === u.id) fail('You can’t remove yourself.');
+    if (!canManageTeam(u, target.teamId) || (target.role === 'admin' && !isAdmin(u))) fail('You can’t remove this person.');
+    DB.all('sessions').filter(function (s) { return s.userId === target.id; }).forEach(function (s) { DB.remove('sessions', s.id); });
+    DB.remove('users', target.id);
+    return { ok: true };
+  },
+
+  resetPin: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId), pin = str(r.pin);
+    if (!target) fail('That person no longer exists.');
+    if (!/^\d{4}$/.test(pin)) fail('The PIN must be exactly 4 digits.');
+    if (target.id !== u.id && (!canManageTeam(u, target.teamId) || (target.role === 'admin' && !isAdmin(u)))) fail('You can’t reset this PIN.');
+    if (target.id === u.id && pinHash(u.salt, u.username, str(r.oldPin)) !== u.pinHash) fail('Your current PIN is incorrect.');
+    var salt = uid('s');
+    DB.update('users', target.id, { salt: salt, pinHash: pinHash(salt, target.username, pin), failed: 0, lockedUntil: '' });
+    return { ok: true };
+  },
+
+  /* ---------- properties & teams (main admin) ---------- */
+  saveProperty: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can add properties.');
+    var code = str(r.property && r.property.code, 12).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    var name = str(r.property && r.property.name, 100);
+    if (code.length < 3) fail('Property codes need at least 3 letters or numbers.');
+    if (!name) fail('Enter the property name.');
+    var ex = findProperty(DB, code);
+    if (ex) { DB.update('properties', ex.id, { name: name }); return DB.get('properties', ex.id); }
+    var p = { id: uid('h'), code: code, name: name, createdAt: nowISO() };
+    DB.insert('properties', p);
+    return p;
+  },
+
+  saveTeam: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can add teams.');
+    var t = r.team || {}, name = str(t.name, 60);
+    if (!name) fail('Enter a team name.');
+    if (t.id) { DB.update('teams', t.id, { name: name, color: str(t.color, 20) || 'blue' }); return DB.get('teams', t.id); }
+    var p = findProperty(DB, t.propertyCode); if (!p) fail('Choose a property.');
+    var obj = { id: uid('g'), propertyCode: p.code, name: name, color: str(t.color, 20) || 'blue', createdAt: nowISO() };
+    DB.insert('teams', obj);
+    return obj;
+  },
+
+  deleteTeam: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can delete teams.');
+    if (DB.find('users', function (x) { return x.teamId === r.id; })) fail('Move or remove everyone in this team first.');
+    if (DB.find('projects', function (x) { return x.teamId === r.id; })) fail('Delete this team’s projects first.');
+    DB.remove('teams', r.id);
+    return { ok: true };
+  }
+};
+
+function coreHandle(DB, req) {
+  try {
+    var fn = ACTIONS[req && req.action];
+    if (!fn) fail('Unknown request.');
+    return { ok: true, data: fn(DB, req) };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
+function seedAdmin(DB, cfg) {
+  var p = findProperty(DB, cfg.propertyCode);
+  if (!p) { p = { id: uid('h'), code: cfg.propertyCode, name: cfg.propertyName, createdAt: nowISO() }; DB.insert('properties', p); }
+  var team = DB.find('teams', function (t) { return t.propertyCode === p.code && t.name === cfg.teamName; });
+  if (!team) { team = { id: uid('g'), propertyCode: p.code, name: cfg.teamName, color: 'blue', createdAt: nowISO() }; DB.insert('teams', team); }
+  var ex = DB.find('users', function (x) { return x.propertyCode === p.code && lc(x.username) === lc(cfg.username); });
+  if (ex) return ex;
+  var salt = uid('s');
+  var u = { id: uid('u'), propertyCode: p.code, teamId: team.id, username: lc(cfg.username), name: cfg.name, jobTitle: cfg.jobTitle,
+    role: 'admin', status: 'active', pinHash: pinHash(salt, cfg.username, cfg.pin), salt: salt, failed: 0, lockedUntil: '',
+    avatarColor: 'indigo', createdAt: nowISO(), approvedBy: '', approvedAt: '' };
+  DB.insert('users', u);
+  return u;
+}
+
+/* =====================================================================
+   ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
+   ===================================================================== */
+const CONFIG = {
+  APP_NAME: 'Orbit',
+  // Paste your Google Apps Script web app URL here to go live.
+  // Leave empty to run in demo mode (data stays on this device).
+  API_URL: 'https://script.google.com/macros/s/AKfycbyZwfISWQ0kS3sDgRNkg4EinrQBKvMK7Qw1G7HhxHDruiOes3da7iLNQcOhTKu6PVq2eQ/exec'
+};
+
+/* ---------------- small helpers ---------------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { } }
+};
+const pad = n => String(n).padStart(2, '0');
+const isoDay = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const todayStr = () => isoDay(new Date());
+const addDays = (n, base = new Date()) => { const d = new Date(base); d.setDate(d.getDate() + n); return isoDay(d); };
+const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const dayDiff = s => Math.round((parseDay(s) - parseDay(todayStr())) / 86400000);
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function fmtDay(s) {
+  if (!s) return '';
+  const n = dayDiff(s), d = parseDay(s);
+  if (n === 0) return 'Today'; if (n === 1) return 'Tomorrow'; if (n === -1) return 'Yesterday';
+  if (n > 1 && n < 7) return WD[d.getDay()];
+  return d.getDate() + ' ' + MON[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+}
+function ago(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60) return 'now'; if (s < 3600) return Math.floor(s / 60) + 'm'; if (s < 86400) return Math.floor(s / 3600) + 'h';
+  if (s < 604800) return Math.floor(s / 86400) + 'd';
+  const d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()];
+}
+function fullTime(iso) { const d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const fileSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const cvar = c => 'var(--' + (c || 'blue') + ')';
+
+/* ---------------- icons (SF Symbols–style strokes) ---------------- */
+const IC = {
+  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
+  mytasks: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12.5l2.5 2.5L16 9.5',
+  folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  people: 'M16 21v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 19.5V21 M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M20 21v-1.5a3.5 3.5 0 0 0-2.5-3.35 M15.5 4.15a4 4 0 0 1 0 7.7',
+  person: 'M20 21v-1.5A3.5 3.5 0 0 0 16.5 16h-9A3.5 3.5 0 0 0 4 19.5V21 M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  personPlus: 'M15 21v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 3 19.5V21 M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M19 8v6 M22 11h-6',
+  bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  plus: 'M12 5v14M5 12h14',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M20 20l-4-4',
+  chevR: 'M9 6l6 6-6 6', chevL: 'M15 6l-6 6 6 6', chevD: 'M6 9l6 6 6-6', updown: 'M8 9l4-4 4 4 M8 15l4 4 4-4',
+  cal: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M8 2v4 M16 2v4',
+  today: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M8 2v4 M16 2v4 M12 14h.01',
+  flag: 'M5 21V4 M5 4h11l-2 4 2 4H5',
+  clip: 'M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48',
+  bubble: 'M21 12a8 8 0 0 1-11.6 7.14L4 20l1-4.4A8 8 0 1 1 21 12z',
+  x: 'M6 6l12 12M18 6L6 18',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  trash: 'M4 7h16 M10 11v6 M14 11v6 M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12 M9 7V4h6v3',
+  check: 'M5 12.5l4.5 4.5L19 7',
+  list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01',
+  board: 'M4 4h4v16H4z M10 4h4v10h-4z M16 4h4v13h-4z',
+  out: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
+  doc: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M14 3v6h6',
+  up: 'M12 19V5 M5 12l7-7 7 7',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2',
+  alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 8v4 M12 16h.01',
+  done: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12.5l2.5 2.5L16 9.5',
+  orbit: 'M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M3.5 15.5c-1.4-2.6 2-7 7.6-9.9s11.1-3 12.5-.4 M20.5 8.5c1.4 2.6-2 7-7.6 9.9S1.8 21.4.4 18.8',
+  building: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16 M16 9h2a2 2 0 0 1 2 2v10 M3 21h18 M8 7h4 M8 11h4 M8 15h4',
+  lock: 'M6 11h12v10H6z M8 11V7a4 4 0 0 1 8 0v4',
+  archive: 'M3 4h18v4H3z M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8 M10 12h4',
+  pencil: 'M17 3l4 4L8 20H4v-4z',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+  cloud: 'M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z',
+  upload: 'M12 15V3 M7 8l5-5 5 5 M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
+  key: 'M15 7a4 4 0 1 1-3.87 5H8v3H5v-3H3v-3h8.13A4 4 0 0 1 15 7z',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  sub: 'M6 4v10a2 2 0 0 0 2 2h10 M14 12l4 4-4 4',
+  power: 'M12 2v10 M18.4 6.6a9 9 0 1 1-12.8 0'
+};
+const ic = (n, c = '') => `<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="${IC[n] || ''}"/></svg>`;
+
+/* ---------------- vocabulary ---------------- */
+const STATUS = { todo: { l: 'To Do', c: 'gray' }, doing: { l: 'In Progress', c: 'blue' }, review: { l: 'In Review', c: 'purple' }, done: { l: 'Done', c: 'green' } };
+const PRIO = { urgent: { l: 'Urgent', c: 'red' }, high: { l: 'High', c: 'orange' }, medium: { l: 'Medium', c: 'yellow' }, low: { l: 'Low', c: 'blue' }, none: { l: 'No Priority', c: 'gray' } };
+const PSTATUS = { on_track: { l: 'On Track', c: 'green' }, at_risk: { l: 'At Risk', c: 'orange' }, off_track: { l: 'Off Track', c: 'red' }, on_hold: { l: 'On Hold', c: 'gray' }, complete: { l: 'Complete', c: 'blue' } };
+const ROLE = { admin: 'Main Admin', head: 'Department Head', member: 'Team Member' };
+const PCOLORS = ['blue', 'indigo', 'purple', 'pink', 'red', 'orange', 'yellow', 'green', 'mint', 'teal', 'cyan', 'brown', 'gray'];
+const PICONS = ['📁', '🎄', '📅', '🌐', '📣', '📸', '🎉', '🍽️', '🏨', '💼', '📊', '✨', '🎯', '🛎️', '💡', '🧾'];
+
+/* ---------------- demo storage (this device only) ---------------- */
+const LocalDB = (() => {
+  const KEY = 'orbit_demo_v1';
+  let T = null, mem = false;
+  const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
+  function load() {
+    if (T) return;
+    T = store.get(KEY, null);
+    if (!T) { T = {}; seedDemo(api); save(); }
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(T)); } catch (e) { mem = true; } }
+  const api = {
+    all: t => { load(); return clone(T[t] || []); },
+    get: (t, id) => { load(); return clone((T[t] || []).find(x => x.id === id) || null); },
+    find: (t, f) => { load(); return clone((T[t] || []).find(f) || null); },
+    insert: (t, o) => { load(); (T[t] = T[t] || []).push(clone(o)); save(); },
+    update: (t, id, p) => { load(); const r = (T[t] || []).find(x => x.id === id); if (r) { Object.assign(r, clone(p)); save(); } },
+    remove: (t, id) => { load(); T[t] = (T[t] || []).filter(x => x.id !== id); save(); },
+    saveFile: (name, type, b64) => ({ url: 'data:' + (type || 'application/octet-stream') + ';base64,' + b64 }),
+    reset: () => { T = {}; seedDemo(api); save(); },
+    get memoryOnly() { return mem; }
+  };
+  return api;
+})();
+
+function seedDemo(DB) {
+  const admin = seedAdmin(DB, { propertyCode: 'DXBAI', propertyName: 'Embassy Suites by Hilton Dubai Business Bay', teamName: 'Marketing',
+    username: 'shri', name: 'Shri Trivedi', jobTitle: 'Cluster Marketing Manager', pin: '1234' });
+  DB.insert('properties', { id: uid('h'), code: 'DXBPI', name: 'Hilton Garden Inn Dubai Business Bay', createdAt: nowISO() });
+  const mkTeam = (code, name, color) => { const t = { id: uid('g'), propertyCode: code, name, color, createdAt: nowISO() }; DB.insert('teams', t); return t; };
+  const mkt = DB.find('teams', t => t.name === 'Marketing');
+  const sales = mkTeam('DXBAI', 'Sales', 'orange'); mkTeam('DXBAI', 'Food & Beverage', 'red'); mkTeam('DXBAI', 'Front Office', 'teal');
+  mkTeam('DXBPI', 'Marketing', 'blue'); mkTeam('DXBPI', 'Sales', 'orange'); mkTeam('DXBPI', 'Operations', 'green');
+  const mkUser = (username, name, jobTitle, role, status, team, pin, color) => {
+    const salt = uid('s');
+    const u = { id: uid('u'), propertyCode: team.propertyCode, teamId: team.id, username, name, jobTitle, role, status, salt,
+      pinHash: pinHash(salt, username, pin), failed: 0, lockedUntil: '', avatarColor: color, createdAt: new Date(Date.now() - 864e5 * 20).toISOString(),
+      approvedBy: status === 'active' ? admin.id : '', approvedAt: '' };
+    DB.insert('users', u); return u;
+  };
+  const aisha = mkUser('aisha', 'Aisha Rahman', 'Marketing Manager', 'head', 'active', mkt, '1111', 'pink');
+  const rahul = mkUser('rahul', 'Rahul Mehta', 'Graphic Designer', 'member', 'active', mkt, '2222', 'orange');
+  const maria = mkUser('maria', 'Maria Santos', 'Digital Marketing Executive', 'member', 'active', mkt, '3333', 'green');
+  const priya = mkUser('priya', 'Priya Nair', 'Director of Sales', 'head', 'active', sales, '4444', 'purple');
+  const omar = mkUser('omar', 'Omar Haddad', 'Content Creator', 'member', 'pending', mkt, '5555', 'teal');
+  mkUser('lina', 'Lina Fares', 'Sales Executive', 'member', 'pending', sales, '6666', 'blue');
+  const t0 = Date.now();
+  const when = h => new Date(t0 - h * 3600e3).toISOString();
+  const mkProject = (team, name, icon, color, status, due, desc, owner) => {
+    const p = { id: uid('p'), teamId: team.id, name, icon, color, status, due, description: desc, ownerId: owner.id, createdBy: owner.id,
+      createdAt: when(300), updatedAt: when(2), archived: false };
+    DB.insert('projects', p); return p;
+  };
+  let ord = 1;
+  const mkTask = (p, title, who, prio, due, status, extra = {}) => {
+    const t = Object.assign({ id: uid('t'), teamId: p.teamId, projectId: p.id, parentId: '', title, notes: '', status, priority: prio,
+      assignees: who.map(w => w.id), due, createdBy: (extra.by || aisha).id, createdAt: when(200 - ord), updatedAt: when(5),
+      completedAt: status === 'done' ? when(30) : '', order: ord++, attachments: [] }, extra.t || {});
+    DB.insert('tasks', t); return t;
+  };
+  const fest = mkProject(mkt, 'Festive Season 2026', '🎄', 'red', 'on_track', addDays(40), 'Christmas, NYE gala and festive F&B offers across DXBAI and DXBPI.', aisha);
+  const poster = mkTask(fest, 'Design NYE gala poster', [rahul], 'high', addDays(2), 'doing', { t: { notes: 'A4 print + Instagram story and feed sizes. Use the gold festive palette from the brand pack.' } });
+  mkTask(fest, 'Get final NYE package pricing from F&B', [rahul], 'none', addDays(-2), 'done', { t: { parentId: poster.id, projectId: fest.id } });
+  mkTask(fest, 'Export A4, story and feed sizes', [rahul], 'none', addDays(1), 'todo', { t: { parentId: poster.id } });
+  mkTask(fest, 'Send to brand team for approval', [aisha], 'none', addDays(2), 'todo', { t: { parentId: poster.id } });
+  const pr = mkTask(fest, 'Write press release for festive offers', [aisha], 'high', addDays(-1), 'review', { by: admin });
+  mkTask(fest, 'Book photographer for tree lighting', [maria], 'medium', addDays(6), 'todo');
+  mkTask(fest, 'Update website offers page', [maria], 'low', addDays(9), 'todo');
+  mkTask(fest, 'Brief PR agency on festive calendar', [admin], 'medium', addDays(-6), 'done', { by: admin });
+  const soc = mkProject(mkt, 'Q1 2027 Social Calendar', '📅', 'indigo', 'on_track', addDays(50), 'January–March content plan for Instagram, TikTok and LinkedIn.', maria);
+  mkTask(soc, 'Plan January content themes', [maria], 'medium', addDays(12), 'todo', { by: maria });
+  mkTask(soc, 'Shoot spa & pool reels', [rahul, maria], 'urgent', addDays(4), 'todo', { by: maria });
+  mkTask(soc, 'Influencer shortlist for staycation campaign', [aisha], 'medium', addDays(0), 'doing', { by: maria });
+  const web = mkProject(mkt, 'Website Refresh', '🌐', 'teal', 'at_risk', addDays(21), 'New room photography and copy for both hotel websites.', admin);
+  mkTask(web, 'Collect new room photos from photographer', [rahul], 'high', addDays(-3), 'todo', { by: admin });
+  mkTask(web, 'Review copy for Rooms & Suites page', [admin], 'medium', addDays(1), 'doing', { by: admin });
+  mkTask(web, 'Brand standards check with regional team', [aisha], 'low', addDays(-8), 'done', { by: admin });
+  const crs = mkProject(sales, 'Corporate Rate Season 2027', '💼', 'orange', 'on_track', addDays(30), 'RFP responses and negotiated rates for key accounts.', priya);
+  mkTask(crs, 'Prepare RFP response pack', [priya], 'high', addDays(3), 'doing', { by: priya });
+  DB.insert('comments', { id: uid('c'), teamId: mkt.id, taskId: pr.id, userId: admin.id, text: 'Please add the Christmas brunch price and the kids’ activity line.', createdAt: when(20) });
+  DB.insert('comments', { id: uid('c'), teamId: mkt.id, taskId: pr.id, userId: aisha.id, text: 'Done — draft v2 is attached. Waiting on final brunch price from F&B.', createdAt: when(6) });
+  DB.update('tasks', pr.id, { attachments: [{ id: uid('f'), name: 'Festive-Press-Release-v2.txt', type: 'text/plain', size: 2140,
+    url: 'data:text/plain;base64,' + btoa('Festive Press Release v2 (demo file)'), by: aisha.id, at: when(6) }] });
+  const act = (who, team, type, ref, text, targets, h) => DB.insert('activity', { id: uid('a'), teamId: team.id, userId: who.id, type, refId: ref, text, targets, createdAt: when(h) });
+  act(aisha, mkt, 'comment', pr.id, 'commented on “' + pr.title + '”', [admin.id], 6);
+  act(maria, mkt, 'assign', poster.id, 'assigned “Shoot spa & pool reels”', [rahul.id], 9);
+  act(omar, mkt, 'signup', omar.id, 'asked to join Marketing', [admin.id, aisha.id], 14);
+  act(rahul, mkt, 'complete', poster.id, 'completed “Get final NYE package pricing from F&B”', [aisha.id], 28);
+}
+
+/* ---------------- API ---------------- */
+const Session = {
+  get token() { return (store.get('orbit_session', {}) || {}).token || ''; },
+  get user() { return (store.get('orbit_session', {}) || {}).user || null; },
+  set(token, user) { store.set('orbit_session', { token, user }); },
+  clear() { store.del('orbit_session'); }
+};
+const API = {
+  live: !!CONFIG.API_URL,
+  async call(action, payload = {}) {
+    const req = Object.assign({ action, token: Session.token }, payload);
+    let res;
+    if (!this.live) {
+      await sleep(60);
+      res = coreHandle(LocalDB, JSON.parse(JSON.stringify(req)));
+    } else {
+      let r;
+      try {
+        r = await fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(req) });
+      } catch (e) { throw new Error('Can’t reach the server. Check your connection and try again.'); }
+      if (!r.ok) throw new Error('The server returned an error (' + r.status + '). Try again in a moment.');
+      res = await r.json();
+    }
+    if (!res.ok) {
+      if (res.error === 'AUTH' && action !== 'login') { signedOut('You were signed out. Sign in again to continue.'); }
+      throw new Error(res.error);
+    }
+    return res.data;
+  }
+};
+
+/* ---------------- app state ---------------- */
+const S = {
+  data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
+  scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
+  collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', '')
+};
+const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
+const me = () => D().me || Session.user || {};
+const isAdminU = () => me().role === 'admin';
+const userById = id => D().users.find(u => u.id === id);
+const taskById = id => D().tasks.find(t => t.id === id);
+const projById = id => D().projects.find(p => p.id === id);
+const teamById = id => D().teams.find(t => t.id === id);
+const inScope = teamId => !isAdminU() || S.scope === 'all' || S.scope === teamId;
+const scopeTeamId = () => isAdminU() && S.scope !== 'all' ? S.scope : me().teamId;
+const canManage = teamId => isAdminU() || (me().role === 'head' && me().teamId === teamId);
+const projects = () => D().projects.filter(p => inScope(p.teamId) && !p.archived).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+const topTasks = pid => D().tasks.filter(t => t.projectId === pid && !t.parentId);
+const subtasks = id => D().tasks.filter(t => t.parentId === id).sort((a, b) => a.order - b.order);
+const isDone = t => t.status === 'done';
+const myTasks = () => D().tasks.filter(t => (t.assignees || []).includes(me().id) && inScope(t.teamId));
+const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && inScope(u.teamId));
+const unread = () => D().activity.filter(a => (a.targets || []).includes(me().id) && a.createdAt > (S.seenAt || '')).length;
+const teamLabel = t => t ? (isAdminU() || D().properties.length > 1 ? t.propertyCode + ' · ' : '') + t.name : '';
+function progress(pid) {
+  const ts = topTasks(pid); const d = ts.filter(isDone).length;
+  return { done: d, total: ts.length, pct: ts.length ? Math.round(d / ts.length * 100) : 0 };
+}
+function upsert(table, obj) {
+  const arr = D()[table]; const i = arr.findIndex(x => x.id === obj.id);
+  if (i >= 0) arr[i] = obj; else arr.push(obj);
+}
+
+/* ---------------- UI atoms ---------------- */
+function av(u, cls = '') {
+  if (!u) return `<span class="av ${cls}" style="background:var(--gray)">?</span>`;
+  return `<span class="av ${cls}" style="background:${cvar(u.avatarColor)}" title="${esc(u.name)}">${esc(initials(u.name))}</span>`;
+}
+function avs(ids, max = 3, cls = 'sm') {
+  const list = (ids || []).map(userById).filter(Boolean);
+  if (!list.length) return '';
+  return `<span class="avs">${list.slice(0, max).map(u => av(u, cls)).join('')}${list.length > max ? `<span class="av ${cls}" style="background:var(--gray)">+${list.length - max}</span>` : ''}</span>`;
+}
+const pillHtml = (meta, extra = '') => `<span class="pill" style="background:color-mix(in srgb,${cvar(meta.c)} 15%,transparent);color:${cvar(meta.c)}" ${extra}><span class="dot" style="background:${cvar(meta.c)}"></span>${esc(meta.l)}</span>`;
+const roleChip = u => u.status === 'pending' ? '<span class="chip role-pending">Waiting</span>' : u.status === 'disabled' ? '<span class="chip role-disabled">Turned Off</span>' :
+  `<span class="chip role-${u.role}">${ROLE[u.role]}</span>`;
+function flag(p, cls = 's') { if (!p || p === 'none') return ''; return `<span class="flag" style="color:${cvar(PRIO[p].c)}" title="${PRIO[p].l} priority">${ic('flag', cls)}</span>`; }
+function dueHtml(t) {
+  if (!t.due) return '';
+  const n = dayDiff(t.due), cls = isDone(t) ? '' : n < 0 ? 'over' : n === 0 ? 'today' : '';
+  return `<span class="due ${cls}">${ic('cal', 'xs')}${fmtDay(t.due)}</span>`;
+}
+function picon(p, cls = '') { return `<span class="picon ${cls}" style="background:${cvar(p.color)}">${esc(p.icon || initials(p.name))}</span>`; }
+function emptyState(icon, color, title, text, btn = '') {
+  return `<div class="empty"><span class="ico" style="background:${cvar(color)}">${ic(icon)}</span><b>${title}</b><span>${text}</span>${btn}</div>`;
+}
+
+/* ---------------- render: root ---------------- */
+const app = () => $('#app');
+let lastKey = '';
+function render(opts = {}) {
+  if (opts.soft) {
+    const a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') && app().contains(a)) return;
+  }
+  if (!Session.token) { renderAuth(); return; }
+  if (!S.data) { app().innerHTML = `<div class="loading"><span class="spin"></span></div>`; return; }
+  if (S.taskId && !taskById(S.taskId)) S.taskId = null;
+  if (S.view === 'project' && !projById(S.projectId)) S.view = 'projects';
+  const key = S.view + '|' + S.projectId + '|' + S.mode;
+  const sc = $('#sc'), is = $('.insp-scroll');
+  const keep = { sc: sc && key === lastKey ? sc.scrollTop : 0, is: is ? is.scrollTop : 0, task: S.taskId };
+  app().innerHTML = shellHtml();
+  if ($('#sc')) $('#sc').scrollTop = keep.sc;
+  if ($('.insp-scroll') && opts.keepInsp !== false && keep.task === S.taskId) $('.insp-scroll').scrollTop = keep.is;
+  lastKey = key;
+  autosize();
+  onScrollTitle();
+}
+function renderContent() { const sc = $('#page'); if (sc) sc.innerHTML = viewHtml(); }
+
+function shellHtml() {
+  const t = S.taskId ? taskById(S.taskId) : null;
+  return `<div class="shell ${t ? 'with-insp' : ''}">
+    ${sidebarHtml()}
+    <main class="main">
+      ${toolbarHtml()}
+      <div class="scroll" id="sc"><div class="page ${S.view === 'project' && S.mode !== 'list' ? 'wide' : ''}" id="page">${viewHtml()}</div></div>
+    </main>
+    ${t ? `<div class="mobile-scrim" data-act="closeTask"></div><aside class="insp" aria-label="Task details">${inspectorHtml(t)}</aside>` : ''}
+  </div>
+  ${tabbarHtml()}`;
+}
+
+/* ---------------- sidebar (macOS) ---------------- */
+function sidebarHtml() {
+  const m = me(), team = teamById(m.teamId), pend = pendingUsers().length, un = unread();
+  const nav = (v, icon, label, n = '') => `<button class="sb-item ${S.view === v ? 'on' : ''}" data-act="go" data-v="${v}">${ic(icon)}<span class="lbl">${label}</span>${n}</button>`;
+  const scopeName = S.scope === 'all' ? 'All Teams' : teamLabel(teamById(S.scope));
+  return `<nav class="sidebar" aria-label="Sidebar">
+    <div class="sb-head"><span class="appmark">${ic('orbit')}</span><div><div class="sb-title">${CONFIG.APP_NAME}</div>
+      <div class="sb-sub">${esc(isAdminU() ? 'Main Admin' : teamLabel(team))}</div></div></div>
+    ${isAdminU() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
+    <div class="sb-scroll">
+      ${nav('home', 'home', 'Home')}
+      ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
+      ${nav('activity', 'bell', 'Activity', un ? `<span class="badge" style="margin-left:auto">${un}</span>` : '')}
+      ${nav('team', 'people', 'Team', pend ? `<span class="badge" style="margin-left:auto">${pend}</span>` : '')}
+      <div class="sb-sec"><span>Projects</span><button class="ibtn" style="width:24px;height:24px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
+      ${projects().map(p => `<button class="sb-item ${S.view === 'project' && S.projectId === p.id ? 'on' : ''}" data-act="openProject" data-id="${p.id}">
+        <span class="pdot" style="background:${cvar(p.color)}"></span><span class="lbl">${esc(p.name)}</span><span class="n tnum">${topTasks(p.id).filter(t => !isDone(t)).length || ''}</span></button>`).join('')
+      || `<div class="sb-item faint" style="cursor:default">No projects yet</div>`}
+      <button class="sb-item ${S.view === 'projects' ? 'on' : ''}" data-act="go" data-v="projects">${ic('folder')}<span class="lbl">All Projects</span></button>
+    </div>
+    <div class="sb-foot"><button class="me-btn" data-act="go" data-v="settings">${av(m)}<div style="min-width:0;flex:1"><div class="nm">${esc(m.name)}</div>
+      <div class="jt">${esc(m.jobTitle || ROLE[m.role])}</div></div>${ic('gear', 's')}</button></div>
+  </nav>`;
+}
+
+/* ---------------- tab bar (iOS) ---------------- */
+function tabbarHtml() {
+  const tab = (v, icon, label, b = 0) => `<button class="${(S.view === v || (v === 'projects' && S.view === 'project')) ? 'on' : ''}" data-act="go" data-v="${v}">${ic(icon)}<span>${label}</span>${b ? `<span class="badge">${b}</span>` : ''}</button>`;
+  return `<div class="tabbar"><div class="tabs glass">${tab('home', 'home', 'Home', unread())}${tab('mytasks', 'mytasks', 'My Tasks')}${tab('projects', 'folder', 'Projects')}${tab('team', 'people', 'Team', pendingUsers().length)}</div>
+    <button class="fab glass" data-act="${S.view === 'projects' ? 'newProject' : 'newTask'}" aria-label="${S.view === 'projects' ? 'New project' : 'New task'}">${ic('plus')}</button></div>`;
+}
+
+/* ---------------- toolbar ---------------- */
+const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', settings: 'Settings', activity: 'Activity', search: 'Search' };
+function toolbarHtml() {
+  const p = S.view === 'project' ? projById(S.projectId) : null;
+  const title = p ? esc(p.name) : TITLES[S.view] || '';
+  const back = p || S.view === 'settings' || S.view === 'activity' || S.view === 'search';
+  const newAct = S.view === 'projects' ? 'newProject' : 'newTask';
+  return `<div class="toolbar" id="tb">
+    ${back ? `<button class="ibtn glassy mob-only" data-act="back" aria-label="Back">${ic('chevL')}</button>` : `<button class="mob-only" data-act="go" data-v="settings" aria-label="Settings" style="border-radius:50%">${av(me(), 'lg')}</button>`}
+    <div class="tt">${p ? `<span class="pdot" style="background:${cvar(p.color)}"></span>` : ''}<span>${title}</span></div>
+    <label class="search desk">${ic('search', 's')}<input id="q" type="search" placeholder="Search tasks" value="${esc(S.q)}" data-input="search" aria-label="Search tasks"></label>
+    <button class="ibtn glassy mob-only" data-act="go" data-v="search" aria-label="Search">${ic('search')}</button>
+    ${S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary desk-only" data-act="${newAct}" id="newbtn">${ic('plus', 's')}<span>${S.view === 'projects' ? 'New Project' : 'New Task'}</span></button>` : ''}
+  </div>`;
+}
+
+/* ---------------- views ---------------- */
+function viewHtml() {
+  if (S.q && S.view !== 'search') return searchResultsHtml(S.q);
+  switch (S.view) {
+    case 'home': return homeHtml();
+    case 'mytasks': return myTasksHtml();
+    case 'projects': return projectsHtml();
+    case 'project': return projectHtml();
+    case 'team': return teamHtml();
+    case 'settings': return settingsHtml();
+    case 'activity': return activityHtml();
+    case 'search': return searchHtml();
+  }
+  return '';
+}
+function scopePill() {
+  if (!isAdminU()) return '';
+  const name = S.scope === 'all' ? 'All Teams' : teamLabel(teamById(S.scope));
+  return `<button class="pill scope-pill" style="background:var(--fill3);color:var(--label);margin:0 4px 14px" data-act="scopeMenu">${ic('building', 's')}${esc(name)}${ic('chevD', 'xs')}</button>`;
+}
+
+function homeHtml() {
+  const m = me(), h = new Date().getHours(), first = String(m.name || '').split(' ')[0];
+  const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const mine = myTasks(), open = mine.filter(t => !isDone(t));
+  const today = open.filter(t => t.due && dayDiff(t.due) === 0).length;
+  const over = open.filter(t => t.due && dayDiff(t.due) < 0).length;
+  const doneWk = mine.filter(t => isDone(t) && t.completedAt && (Date.now() - new Date(t.completedAt)) < 7 * 864e5).length;
+  const d = new Date();
+  const tile = (f, icon, color, n, label) => `<button data-act="myFilter" data-f="${f}"><div class="top"><span class="ico" style="background:${cvar(color)}">${ic(icon)}</span><span class="num tnum">${n}</span></div><span class="nm">${label}</span></button>`;
+  const pend = pendingUsers();
+  const acts = D().activity.filter(a => inScope(a.teamId)).slice(0, 8);
+  const projs = projects();
+  return `<h1 class="large-title">${greet}, ${esc(first)}</h1>
+    <p class="subhead">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(isAdminU() ? (S.scope === 'all' ? 'All teams' : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p>
+    ${scopePill()}
+    <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
+    ${pend.length ? `<button class="banner" data-act="goRequests"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span>
+      <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="muted" style="font-size:14px">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
+    <div class="group-title"><span>Projects</span><span class="sp"></span><button class="btn plain" data-act="newProject" style="height:24px;text-transform:none;letter-spacing:0">New Project</button></div>
+    ${projs.length ? `<div class="pgrid">${projs.map(projectCard).join('')}</div>` : `<div class="group">${emptyState('folder', 'blue', 'No projects yet', 'Create the first project for your team.', '<button class="btn primary" data-act="newProject">New Project</button>')}</div>`}
+    <div class="group-title"><span>Recent Activity</span><span class="sp"></span><button class="btn plain" data-act="go" data-v="activity" style="height:24px;text-transform:none;letter-spacing:0">See All</button></div>
+    <div class="group">${acts.length ? acts.map(actRow).join('') : emptyState('bell', 'gray', 'Nothing yet', 'Updates from your team will show here.')}</div>`;
+}
+function projectCard(p) {
+  const pr = progress(p.id), ps = PSTATUS[p.status] || PSTATUS.on_track;
+  const people = [...new Set(topTasks(p.id).flatMap(t => t.assignees || []))];
+  return `<button class="pcard" data-act="openProject" data-id="${p.id}">
+    <div class="hd">${picon(p)}<span class="nm">${esc(p.name)}</span></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${pillHtml(ps)}${isAdminU() && S.scope === 'all' ? `<span class="chip role-member">${esc(teamLabel(teamById(p.teamId)))}</span>` : ''}</div>
+    <div class="bar"><i style="width:${pr.pct}%;background:${cvar(p.color)}"></i></div>
+    <div class="meta"><span class="tnum">${pr.done}/${pr.total} done${p.due ? ' · Due ' + fmtDay(p.due) : ''}</span>${avs(people, 4)}</div>
+  </button>`;
+}
+
+function taskRow(t, opt = {}) {
+  const done = isDone(t), subs = subtasks(t.id), sd = subs.filter(isDone).length;
+  const nc = D().comments.filter(c => c.taskId === t.id).length, nf = (t.attachments || []).length;
+  const p = projById(t.projectId), parent = t.parentId ? taskById(t.parentId) : null;
+  return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
+    <button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
+    <div class="body"><div class="ttl">${esc(t.title)}</div>
+      <div class="sub">${opt.showProject && p ? `<span style="color:${cvar(p.color)};font-weight:600">${esc(p.icon || '')} ${esc(p.name)}</span>` : ''}
+        ${parent ? `<span>${ic('sub', 'xs')}${esc(parent.title)}</span>` : ''}
+        ${dueHtml(t)}${subs.length ? `<span>${ic('mytasks', 'xs')}${sd}/${subs.length}</span>` : ''}
+        ${nc ? `<span>${ic('bubble', 'xs')}${nc}</span>` : ''}${nf ? `<span>${ic('clip', 'xs')}${nf}</span>` : ''}
+        ${opt.showStatus && !done ? `<span style="color:${cvar(STATUS[t.status].c)}">${STATUS[t.status].l}</span>` : ''}</div></div>
+    <div class="right">${flag(t.priority)}${avs(t.assignees)}</div>
+  </div>`;
+}
+
+function myTasksHtml() {
+  const mine = myTasks(), f = S.myFilter;
+  const segs = [['open', 'All Open'], ['today', 'Today'], ['overdue', 'Overdue'], ['done', 'Completed']];
+  let body = '';
+  const sortDue = (a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : (a.due || '9999') > (b.due || '9999') ? 1 : (PRIOR(b) - PRIOR(a));
+  if (f === 'done') {
+    const list = mine.filter(isDone).sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1));
+    body = list.length ? `<div class="group">${list.map(t => taskRow(t, { showProject: true })).join('')}</div>` : `<div class="group">${emptyState('done', 'green', 'Nothing completed yet', 'Tasks you finish will collect here.')}</div>`;
+  } else {
+    const open = mine.filter(t => !isDone(t)).sort(sortDue);
+    const buckets = [['Overdue', t => t.due && dayDiff(t.due) < 0], ['Today', t => t.due && dayDiff(t.due) === 0], ['Tomorrow', t => t.due && dayDiff(t.due) === 1],
+      ['Next 7 Days', t => t.due && dayDiff(t.due) > 1 && dayDiff(t.due) <= 7], ['Later', t => t.due && dayDiff(t.due) > 7], ['No Date', t => !t.due]];
+    const use = f === 'today' ? buckets.slice(1, 2) : f === 'overdue' ? buckets.slice(0, 1) : buckets;
+    body = use.map(([name, fn]) => {
+      const list = open.filter(fn); if (!list.length) return '';
+      return `<div class="group-title" ${name === 'Overdue' ? 'style="color:var(--red)"' : ''}>${name} <span class="faint tnum">${list.length}</span></div><div class="group">${list.map(t => taskRow(t, { showProject: true, showStatus: true })).join('')}</div>`;
+    }).join('');
+    if (!body) body = `<div class="group" style="margin-top:14px">${emptyState('done', 'green', f === 'open' ? 'You’re all caught up' : 'Nothing here', f === 'open' ? 'No open tasks are assigned to you.' : 'No tasks match this filter.')}</div>`;
+  }
+  return `<h1 class="large-title">My Tasks</h1><p class="subhead">Everything assigned to you, by due date.</p>
+    <div class="seg" role="tablist">${segs.map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="myFilter" data-f="${k}" role="tab" aria-selected="${f === k}">${l}</button>`).join('')}</div>${body}`;
+}
+const PRIOR = t => ({ urgent: 4, high: 3, medium: 2, low: 1 })[t.priority] || 0;
+
+function projectsHtml() {
+  const list = projects();
+  const archived = D().projects.filter(p => inScope(p.teamId) && p.archived);
+  let body;
+  if (!list.length) body = `<div class="group">${emptyState('folder', 'blue', 'No projects yet', 'Projects group your team’s tasks, deadlines and files.', '<button class="btn primary" data-act="newProject">New Project</button>')}</div>`;
+  else if (isAdminU() && S.scope === 'all') {
+    const byTeam = {}; list.forEach(p => (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p));
+    body = Object.keys(byTeam).map(tid => `<div class="group-title">${esc(teamLabel(teamById(tid)))}</div><div class="pgrid">${byTeam[tid].map(projectCard).join('')}</div>`).join('');
+  } else body = `<div class="pgrid">${list.map(projectCard).join('')}</div>`;
+  return `<h1 class="large-title">Projects</h1><p class="subhead">${list.length} active ${list.length === 1 ? 'project' : 'projects'}</p>${scopePill()}${body}
+    ${archived.length ? `<div class="group-title">Archived</div><div class="group">${archived.map(p => `<button class="row" data-act="openProject" data-id="${p.id}">${picon(p)}<span class="lbl">${esc(p.name)}</span><span class="chev">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}`;
+}
+
+function projectHtml() {
+  const p = projById(S.projectId); if (!p) return '';
+  const pr = progress(p.id), ps = PSTATUS[p.status] || PSTATUS.on_track;
+  const people = [...new Set(topTasks(p.id).flatMap(t => t.assignees || []))];
+  const modes = [['list', 'list', 'List'], ['board', 'board', 'Board'], ['calendar', 'cal', 'Calendar']];
+  let body = S.mode === 'board' ? boardHtml(p) : S.mode === 'calendar' ? calendarHtml(p) : listHtml(p);
+  return `<div class="phead">${picon(p, 'lg')}<div class="info"><h1>${esc(p.name)}</h1>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}</div></div>
+    <div class="controls">
+      <button data-act="projStatus" aria-label="Project status">${pillHtml(ps)}</button>
+      <span class="pill" style="background:var(--fill3)">${pr.pct}% · <span class="tnum">${pr.done}/${pr.total}</span></span>
+      ${p.due ? `<span class="pill" style="background:var(--fill3)">${ic('cal', 'xs')} Due ${fmtDay(p.due)}</span>` : ''}
+      ${p.archived ? '<span class="pill role-pending">Archived</span>' : ''}
+      ${avs(people, 5, '')}
+      <span class="sp"></span>
+      <div class="seg">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
+      <button class="btn ${S.mine ? 'tinted' : 'gray'}" data-act="toggleMine" style="height:34px">${ic('person', 's')}<span>Mine</span></button>
+      <button class="ibtn" data-act="projMenu" aria-label="Project options" style="background:var(--fill3)">${ic('more')}</button>
+    </div>${body}`;
+}
+function filtered(list) { return S.mine ? list.filter(t => (t.assignees || []).includes(me().id)) : list; }
+function listHtml(p) {
+  const all = filtered(topTasks(p.id)).sort((a, b) => a.order - b.order);
+  return Object.keys(STATUS).map(st => {
+    const list = all.filter(t => t.status === st), closed = S.collapsed[st];
+    return `<button class="sec-h ${closed ? 'closed' : ''}" data-act="collapse" data-s="${st}" aria-expanded="${!closed}">${ic('chevD', 's')}<span class="dot" style="background:${cvar(STATUS[st].c)}"></span>${STATUS[st].l}<span class="n tnum">${list.length}</span></button>
+      ${closed ? '' : `<div class="group">${list.map(t => taskRow(t)).join('')}
+        ${st !== 'done' ? `<div class="addrow">${ic('plus')}<input id="add-${st}" placeholder="Add a task" data-enter="quickAdd" data-s="${st}" aria-label="Add a task to ${STATUS[st].l}"></div>` : (list.length ? '' : `<div class="addrow faint" style="color:var(--label3)">Completed tasks appear here</div>`)}</div>`}`;
+  }).join('');
+}
+function boardHtml(p) {
+  const all = filtered(topTasks(p.id)).sort((a, b) => a.order - b.order);
+  return `<div class="board">${Object.keys(STATUS).map(st => {
+    const list = all.filter(t => t.status === st);
+    return `<div class="col" data-col="${st}"><div class="col-h"><span class="dot" style="background:${cvar(STATUS[st].c)}"></span>${STATUS[st].l}<span class="n tnum">${list.length}</span></div>
+      ${list.map(t => {
+        const subs = subtasks(t.id), nc = D().comments.filter(c => c.taskId === t.id).length;
+        return `<div class="card ${isDone(t) ? 'done' : ''}" draggable="true" data-drag="${t.id}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
+          <div class="ttl">${esc(t.title)}</div>
+          <div class="ft">${flag(t.priority)}${dueHtml(t)}${subs.length ? `<span>${ic('mytasks', 'xs')} ${subs.filter(isDone).length}/${subs.length}</span>` : ''}${nc ? `<span>${ic('bubble', 'xs')} ${nc}</span>` : ''}
+          ${(t.attachments || []).length ? `<span>${ic('clip', 'xs')} ${t.attachments.length}</span>` : ''}<span class="sp"></span>${avs(t.assignees)}</div></div>`;
+      }).join('')}
+      ${S.addingCol === st ? `<div class="card"><input class="inline-input" id="addcol" placeholder="Task title" data-enter="quickAdd" data-s="${st}" aria-label="New task title"></div>`
+        : `<button class="addcard" data-act="addCard" data-s="${st}">${ic('plus', 's')} Add Task</button>`}</div>`;
+  }).join('')}</div>`;
+}
+function calendarHtml(p) {
+  const [y, m] = S.calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1), start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+  const tasks = filtered(D().tasks.filter(t => t.projectId === p.id && t.due));
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i); const ds = isoDay(d);
+    if (i >= 35 && d.getMonth() !== m - 1) break;
+    const evs = tasks.filter(t => t.due === ds);
+    cells.push(`<div class="d ${d.getMonth() !== m - 1 ? 'out' : ''} ${ds === todayStr() ? 'today' : ''}"><span class="n tnum">${d.getDate()}</span>
+      ${evs.slice(0, 3).map(t => `<button class="ev" data-act="openTask" data-id="${t.id}" style="background:color-mix(in srgb,${cvar(isDone(t) ? 'gray' : PRIO[t.priority].c === 'gray' ? p.color : PRIO[t.priority].c)} 18%,transparent);color:var(--label)${isDone(t) ? ';text-decoration:line-through;opacity:.6' : ''}">${esc(t.title)}</button>`).join('')}
+      ${evs.length > 3 ? `<span class="more">+${evs.length - 3} more</span>` : ''}</div>`);
+  }
+  return `<div class="controls" style="margin-top:8px"><b style="font-size:20px">${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1]} ${y}</b><span class="sp"></span>
+    <button class="btn gray" data-act="calNav" data-d="0" style="height:32px">Today</button>
+    <button class="ibtn" data-act="calNav" data-d="-1" aria-label="Previous month" style="background:var(--fill3)">${ic('chevL', 's')}</button>
+    <button class="ibtn" data-act="calNav" data-d="1" aria-label="Next month" style="background:var(--fill3)">${ic('chevR', 's')}</button></div>
+    <div style="overflow-x:auto"><div class="cal" style="min-width:320px">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => `<div class="wd">${w}</div>`).join('')}${cells.join('')}</div></div>`;
+}
+
+function teamHtml() {
+  const pend = pendingUsers();
+  const tab = S.teamTab;
+  const users = D().users.filter(u => u.status !== 'pending' && inScope(u.teamId)).sort((a, b) => ({ admin: 0, head: 1, member: 2 })[a.role] - ({ admin: 0, head: 1, member: 2 })[b.role] || a.name.localeCompare(b.name));
+  const groups = {}; users.forEach(u => (groups[u.teamId] = groups[u.teamId] || []).push(u));
+  const canApprove = isAdminU() || me().role === 'head';
+  const myTeam = teamById(me().teamId);
+  const person = (u, acts = '') => `<div class="person">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')} · @${esc(u.username)}</div></div>${acts}</div>`;
+  let body;
+  if (tab === 'requests') {
+    body = pend.length ? `<div class="group" style="margin-top:14px">${pend.map(u => person(u, `<div class="acts"><button class="btn gray" data-act="declineUser" data-id="${u.id}" style="height:32px">Decline</button><button class="btn primary" data-act="approveUser" data-id="${u.id}" style="height:32px">Approve</button></div>`)
+      .replace('<div class="jt">', `<div class="jt">${esc(teamLabel(teamById(u.teamId)))} · `)).join('')}</div>
+      <p class="group-foot">Approving lets them sign in and see this team’s projects. You can set their role and job title when you approve.</p>`
+      : `<div class="group" style="margin-top:14px">${emptyState('personPlus', 'green', 'No requests', 'When someone signs up for your team, you’ll approve them here.')}</div>`;
+  } else {
+    body = Object.keys(groups).map(tid => `<div class="group-title">${esc(teamLabel(teamById(tid)))} <span class="faint tnum">${groups[tid].length}</span></div>
+      <div class="group">${groups[tid].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div>${roleChip(u)}${canManage(u.teamId) ? `<span class="chev faint">${ic('chevR', 's')}</span>` : ''}</button>`).join('')}</div>`).join('');
+    body += `<div class="group-title">Invite People</div><div class="group"><div class="row" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--blue)">${ic('key')}</span>
+      <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="muted" style="font-size:14px;margin-top:2px">New people choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b> after entering property code <b class="tnum">${esc(me().propertyCode)}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You’ll approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
+  }
+  return `<h1 class="large-title">Team</h1><p class="subhead">${esc(isAdminU() ? (S.scope === 'all' ? 'Everyone across all properties' : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
+    ${canApprove ? `<div class="seg"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}${body}`;
+}
+
+function actRow(a) {
+  const u = userById(a.userId), forMe = (a.targets || []).includes(me().id);
+  return `<button class="act ${forMe ? 'me' : ''}" data-act="openActivity" data-id="${a.id}">${av(u)}<div class="tx"><b>${esc(u ? u.name : 'Someone')}</b> ${esc(a.text)}</div><time>${ago(a.createdAt)}</time></button>`;
+}
+function activityHtml() {
+  const all = D().activity.filter(a => inScope(a.teamId));
+  const list = S.actTab === 'me' ? all.filter(a => (a.targets || []).includes(me().id)) : all;
+  return `<h1 class="large-title">Activity</h1><p class="subhead">Assignments, comments, files and approvals.</p>
+    <div class="seg"><button class="${S.actTab === 'me' ? 'on' : ''}" data-act="actTab" data-t="me">For Me</button><button class="${S.actTab === 'all' ? 'on' : ''}" data-act="actTab" data-t="all">Everything</button></div>
+    <div class="group" style="margin-top:14px">${list.length ? list.map(actRow).join('') : emptyState('bell', 'gray', 'No activity', S.actTab === 'me' ? 'When someone assigns you a task or comments on yours, it shows here.' : 'Team updates will show here.')}</div>`;
+}
+
+function searchHtml() {
+  return `<h1 class="large-title">Search</h1>
+    <label class="search" style="height:44px;margin:6px 0 4px;background:var(--fill3)">${ic('search', 's')}<input id="q2" type="search" placeholder="Tasks, projects, people" value="${esc(S.q)}" data-input="search2" aria-label="Search" autofocus></label>
+    <div id="results">${S.q ? searchResultsHtml(S.q, true) : `<p class="subhead" style="margin-top:12px">Search task titles, notes, projects and people.</p>`}</div>`;
+}
+function searchResultsHtml(q, inner) {
+  const s = q.toLowerCase();
+  const tasks = D().tasks.filter(t => inScope(t.teamId) && ((t.title || '').toLowerCase().includes(s) || (t.notes || '').toLowerCase().includes(s))).slice(0, 40);
+  const projs = D().projects.filter(p => inScope(p.teamId) && p.name.toLowerCase().includes(s));
+  const people = D().users.filter(u => inScope(u.teamId) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
+  const none = !tasks.length && !projs.length && !people.length;
+  return `${inner ? '' : `<h1 class="large-title">Results for “${esc(q)}”</h1>`}
+    ${none ? `<div class="group" style="margin-top:14px">${emptyState('search', 'gray', 'No results', 'Try a different word.')}</div>` : ''}
+    ${projs.length ? `<div class="group-title">Projects</div><div class="group">${projs.map(p => `<button class="row" data-act="openProject" data-id="${p.id}">${picon(p)}<span class="lbl">${esc(p.name)}</span><span class="chev">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}
+    ${tasks.length ? `<div class="group-title">Tasks</div><div class="group">${tasks.map(t => taskRow(t, { showProject: true, showStatus: true })).join('')}</div>` : ''}
+    ${people.length ? `<div class="group-title">People</div><div class="group">${people.map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}</div><div class="jt">${esc(u.jobTitle || '')}</div></div>${roleChip(u)}</button>`).join('')}</div>` : ''}`;
+}
+
+function settingsHtml() {
+  const m = me(), team = teamById(m.teamId), theme = store.get('orbit_theme', 'system');
+  const prop = D().properties.find(p => p.code === m.propertyCode);
+  return `<h1 class="large-title">Settings</h1>
+    <div class="group" style="margin-top:14px"><div class="row" style="padding:16px;gap:16px">${av(m, 'xl')}<div class="lbl"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em">${esc(m.name)}</div>
+      <div class="muted">${esc(m.jobTitle || '')}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${roleChip(m)}<span class="chip role-member">${esc(teamLabel(team))}</span></div></div></div></div>
+    <div class="group-title">Account</div>
+    <div class="group">
+      <div class="row"><span class="ico" style="background:var(--gray)">${ic('person')}</span><span class="lbl">Username</span><span class="val">@${esc(m.username)}</span></div>
+      <div class="row"><span class="ico" style="background:var(--indigo)">${ic('building')}</span><span class="lbl">Property</span><span class="val"><span>${esc(m.propertyCode)}${prop ? ' · ' + esc(prop.name) : ''}</span></span></div>
+      <button class="row" data-act="changePin"><span class="ico" style="background:var(--blue)">${ic('lock')}</span><span class="lbl">Change PIN</span><span class="chev">${ic('chevR', 's')}</span></button>
+    </div>
+    <div class="group-title">Appearance</div>
+    <div class="group"><div class="row"><span class="ico" style="background:var(--purple)">${ic('moon')}</span><span class="lbl">Theme</span>
+      <div class="seg">${['system', 'light', 'dark'].map(t => `<button class="${theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div>
+    ${isAdminU() ? `<div class="group-title">Main Admin</div><div class="group">
+      <button class="row" data-act="manageOrg"><span class="ico" style="background:var(--orange)">${ic('building')}</span><span class="lbl">Properties & Teams</span><span class="val">${D().properties.length} · ${D().teams.length}</span><span class="chev">${ic('chevR', 's')}</span></button></div>` : ''}
+    <div class="group-title">Data</div>
+    <div class="group"><div class="row"><span class="ico" style="background:${API.live ? 'var(--green)' : 'var(--orange)'}">${ic('cloud')}</span><span class="lbl">${API.live ? 'Connected' : 'Demo mode'}<div class="muted" style="font-size:13px">${API.live ? 'Saved to your team’s Google Sheet' : 'Saved on this device only. Connect Google Sheets to share with your team.'}</div></span></div>
+      ${API.live ? '' : `<button class="row" data-act="resetDemo"><span class="ico" style="background:var(--gray)">${ic('archive')}</span><span class="lbl">Reset Demo Data</span></button>`}</div>
+    <div class="group" style="margin-top:22px"><button class="row" data-act="signOut" style="justify-content:center;color:var(--red);font-weight:600">${ic('out', 's')} Sign Out</button></div>
+    <p class="group-foot" style="text-align:center;margin-top:14px">${CONFIG.APP_NAME} stays signed in on this device until you sign out.</p>`;
+}
+
+/* ---------------- inspector / task detail ---------------- */
+function inspectorHtml(t) {
+  const p = projById(t.projectId), parent = t.parentId ? taskById(t.parentId) : null, done = isDone(t);
+  const subs = subtasks(t.id), comments = D().comments.filter(c => c.taskId === t.id).sort((a, b) => a.createdAt < b.createdAt ? -1 : 1);
+  const creator = userById(t.createdBy);
+  const ass = (t.assignees || []).map(userById).filter(Boolean);
+  return `<div class="insp-bar">
+      <button class="ibtn glassy" data-act="closeTask" aria-label="Close">${ic('x')}</button><span class="sp"></span>
+      <button class="btn ${done ? 'tinted' : 'gray'}" data-act="toggleDone" data-id="${t.id}" style="${done ? 'color:var(--green);background:color-mix(in srgb,var(--green) 15%,transparent)' : ''}">${ic('check', 's')}${done ? 'Completed' : 'Mark Complete'}</button>
+      <button class="ibtn glassy" data-act="taskMenu" data-id="${t.id}" aria-label="More options">${ic('more')}</button>
+    </div>
+    <div class="insp-scroll">
+      <div class="crumb">${p ? `<button data-act="openProject" data-id="${p.id}">${esc(p.icon || '')} ${esc(p.name)}</button>` : '<span>No project</span>'}
+        ${parent ? `${ic('chevR', 'xs')}<button data-act="openTask" data-id="${parent.id}">${esc(parent.title)}</button>` : ''}</div>
+      <textarea class="ttl-edit" id="ttl" rows="1" data-change="saveTitle" data-id="${t.id}" aria-label="Task title">${esc(t.title)}</textarea>
+      <div class="group" style="margin-top:12px">
+        <button class="row" data-act="pickAssignees" data-id="${t.id}"><span class="ico" style="background:var(--orange)">${ic('person')}</span><span class="lbl">Assigned to</span>
+          <span class="val">${ass.length ? avs(t.assignees, 3) + `<span>${esc(ass.length === 1 ? ass[0].name : ass.length + ' people')}</span>` : '<span>Nobody</span>'}</span><span class="chev">${ic('chevR', 's')}</span></button>
+        <div class="row"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Due date</span>
+          <input type="date" class="date" id="due" value="${esc(t.due || '')}" data-change="saveDue" data-id="${t.id}" aria-label="Due date">
+          ${t.due ? `<button class="ibtn" style="width:28px;height:28px" data-act="clearDue" data-id="${t.id}" aria-label="Clear date">${ic('x', 's')}</button>` : ''}</div>
+        <button class="row" data-act="statusMenu" data-id="${t.id}"><span class="ico" style="background:var(--blue)">${ic('board')}</span><span class="lbl">Status</span><span class="val">${pillHtml(STATUS[t.status])}</span></button>
+        <button class="row" data-act="prioMenu" data-id="${t.id}"><span class="ico" style="background:var(--yellow)">${ic('flag')}</span><span class="lbl">Priority</span><span class="val" style="color:${cvar(PRIO[t.priority || 'none'].c)}"><span>${PRIO[t.priority || 'none'].l}</span></span></button>
+        ${parent ? '' : `<button class="row" data-act="moveMenu" data-id="${t.id}"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><span class="val"><span>${p ? esc(p.name) : 'None'}</span></span><span class="chev">${ic('updown', 's')}</span></button>`}
+      </div>
+      <div class="group-title">Notes</div>
+      <textarea class="notes" id="notes" placeholder="Add details, links or instructions" data-change="saveNotes" data-id="${t.id}" aria-label="Notes">${esc(t.notes || '')}</textarea>
+      ${parent ? '' : `<div class="group-title">Subtasks <span class="faint tnum">${subs.filter(isDone).length}/${subs.length}</span></div>
+      <div class="group">${subs.map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
+        <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${dueHtml(s) ? `<span style="font-size:13px" class="muted">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('')}
+        <div class="addrow">${ic('plus')}<input id="addsub" placeholder="Add subtask" data-enter="addSub" data-id="${t.id}" aria-label="Add subtask"></div></div>`}
+      <div class="group-title"><span>Files</span><span class="sp"></span>
+        <label class="btn plain" style="height:24px;text-transform:none;letter-spacing:0;cursor:pointer">${ic('upload', 's')} Upload<input type="file" hidden data-change="upload" data-id="${t.id}" multiple></label></div>
+      <div class="group">${(t.attachments || []).length ? t.attachments.map(a => fileRow(t, a)).join('') : `<div class="row muted" style="font-size:14px">${ic('clip', 's')} Attach briefs, artwork or contracts (up to ${API.live ? '10 MB' : '1.5 MB in demo'})</div>`}</div>
+      <div class="group-title">Comments <span class="faint tnum">${comments.length || ''}</span></div>
+      <div class="thread">${comments.map(c => { const u = userById(c.userId), mine = c.userId === me().id;
+        return `<div class="cmt ${mine ? 'mine' : ''}">${av(u)}<div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${ago(c.createdAt)}</time>
+        ${mine || canManage(t.teamId) ? `<button class="del" data-act="delComment" data-id="${c.id}">Delete</button>` : ''}</div><div class="tx">${esc(c.text)}</div></div></div>`; }).join('')
+        || '<p class="muted" style="margin:0 4px;font-size:14px">No comments yet. Ask a question or share an update.</p>'}</div>
+      <p class="meta-line">Created by ${esc(creator ? creator.name : 'someone')} · ${fullTime(t.createdAt)}${t.completedAt ? '<br>Completed ' + fullTime(t.completedAt) : ''}</p>
+    </div>
+    <div class="composer"><textarea id="cmt" rows="1" placeholder="Write a comment" aria-label="Write a comment" data-enter-send="sendComment" data-id="${t.id}"></textarea>
+      <button class="ibtn accent" data-act="sendComment" data-id="${t.id}" aria-label="Send comment">${ic('up')}</button></div>`;
+}
+function fileRow(t, a) {
+  const ext = (a.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
+  const col = /PDF/.test(ext) ? 'red' : /DOC|TXT|RTF/.test(ext) ? 'blue' : /XLS|CSV/.test(ext) ? 'green' : /PPT|KEY/.test(ext) ? 'orange' : /PNG|JPG|JPEG|GIF|HEIC|WEBP|SVG/.test(ext) ? 'purple' : 'gray';
+  const by = userById(a.by);
+  return `<div class="file"><span class="ft" style="background:${cvar(col)}">${esc(ext)}</span><div class="nm"><a href="${esc(a.url)}" target="_blank" rel="noopener" ${a.url.startsWith('data:') ? `download="${esc(a.name)}"` : ''}>${esc(a.name)}</a>
+    <small>${fileSize(a.size || 0)} · ${esc(by ? by.name : '')} · ${ago(a.at)}</small></div>
+    <button class="ibtn" data-act="removeFile" data-id="${t.id}" data-f="${a.id}" aria-label="Remove ${esc(a.name)}">${ic('trash', 's')}</button></div>`;
+}
+
+/* ---------------- overlays: dialogs, alerts, menus, toasts ---------------- */
+const ov = () => $('#ov');
+let DLG = null;
+function openDialog({ title, body, ok = 'Save', okClass = 'primary', onOk, onOpen, cancel = 'Cancel' }) {
+  DLG = { onOk };
+  ov().innerHTML = `<div class="scrim" data-dact="close"></div><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="dlg-bar"><button class="btn plain" data-dact="close">${cancel}</button><h2>${esc(title)}</h2>${ok ? `<button class="btn ${okClass}" data-dact="ok">${ok}</button>` : '<span style="width:70px"></span>'}</div>
+    <div class="dlg-body">${body}</div></div>`;
+  onOpen && onOpen(ov());
+  const f = $('.dialog [autofocus]', ov()); if (f && window.innerWidth > 899) setTimeout(() => f.focus(), 50);
+}
+function closeDialog() { DLG = null; ov().innerHTML = ''; }
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-dact]'); if (!el) return;
+  if (el.dataset.dact === 'close') return closeDialog();
+  if (el.dataset.dact === 'ok' && DLG && DLG.onOk) {
+    el.disabled = true;
+    try { const r = await DLG.onOk(ov()); if (r !== false) closeDialog(); }
+    catch (err) { toast(err.message, true); }
+    finally { if (el.isConnected) el.disabled = false; }
+  }
+});
+function confirmBox({ title, msg = '', ok = 'OK', danger = false, cancel = 'Cancel' }) {
+  return new Promise(res => {
+    const root = $('#alert');
+    root.innerHTML = `<div class="scrim alert-scrim"></div><div class="alert glass" role="alertdialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3><p>${esc(msg)}</p>
+      <div class="btns"><button class="btn gray" data-r="0">${cancel}</button><button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${ok}</button></div></div>`;
+    $$('[data-r]', root).forEach(b => b.onclick = () => { root.innerHTML = ''; res(b.dataset.r === '1'); });
+    $('.alert-scrim', root).onclick = () => { root.innerHTML = ''; res(false); };
+    setTimeout(() => $('[data-r="1"]', root).focus(), 30);
+  });
+}
+function openMenu(anchor, items) {
+  const root = $('#menu');
+  const r = anchor.getBoundingClientRect();
+  root.innerHTML = `<div class="scrim" style="background:transparent" data-mclose="1"></div><div class="menu glass" role="menu">${items.map((it, i) =>
+    it === '-' ? '<hr>' : it.header ? `<div class="mh">${esc(it.header)}</div>` :
+      `<button role="menuitem" data-mi="${i}" class="${it.danger ? 'danger' : ''}"><span class="tick">${it.checked ? ic('check', 's') : it.icon ? it.icon : ''}</span><span class="mlbl">${it.html || esc(it.label)}</span></button>`).join('')}</div>`;
+  const m = $('.menu', root);
+  const w = m.offsetWidth, h = m.offsetHeight;
+  let left = Math.min(r.left, window.innerWidth - w - 12), top = r.bottom + 6;
+  if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 6);
+  m.style.left = Math.max(12, left) + 'px'; m.style.top = top + 'px';
+  root.onclick = e => {
+    if (e.target.dataset.mclose) { root.innerHTML = ''; return; }
+    const b = e.target.closest('[data-mi]'); if (!b) return;
+    root.innerHTML = ''; items[+b.dataset.mi].onClick();
+  };
+  const first = $('[data-mi]', m); first && first.focus();
+}
+let toastT;
+function toast(msg, err = false) {
+  const root = $('#toast');
+  root.innerHTML = `<div class="toast glass ${err ? 'err' : ''}" role="status">${ic(err ? 'alert' : 'check', 's')}<span>${esc(msg)}</span></div>`;
+  clearTimeout(toastT); toastT = setTimeout(() => root.innerHTML = '', err ? 4500 : 2200);
+}
+
+/* ---------------- data sync ---------------- */
+let syncing = false;
+async function sync(opts = {}) {
+  if (syncing || !Session.token) return;
+  syncing = true;
+  try {
+    const data = await API.call('sync');
+    S.data = data;
+    Session.set(Session.token, data.me);
+    if (data.me.role !== 'admin') S.scope = 'all';
+    else if (S.scope !== 'all' && !data.teams.find(t => t.id === S.scope)) S.scope = 'all';
+    render({ soft: opts.soft });
+  } catch (e) {
+    if (Session.token && !opts.soft) toast(e.message, true);
+  } finally { syncing = false; }
+}
+async function run(action, payload, okMsg) {
+  try { const r = await API.call(action, payload); if (okMsg) toast(okMsg); return r; }
+  catch (e) { toast(e.message, true); sync({ soft: true }); throw e; }
+}
+async function saveTask(patch, msg) {
+  const t = patch.id ? taskById(patch.id) : null;
+  if (t) { Object.assign(t, patch); if (patch.status) t.completedAt = patch.status === 'done' ? new Date().toISOString() : ''; render(); }
+  const res = await run('saveTask', { task: patch }, msg);
+  upsert('tasks', res);
+  render();
+  return res;
+}
+function signedOut(msg) {
+  Session.clear(); S.data = null; S.taskId = null; S.view = 'home';
+  A.step = 'signin'; A.err = msg || ''; render();
+}
+
+/* ---------------- actions ---------------- */
+const ACT = {
+  go(el) { const v = el.dataset.v; S.view = v; S.taskId = window.innerWidth < 900 ? null : S.taskId; S.q = v === 'search' ? S.q : '';
+    const q = $('#q'); if (q) q.value = S.q;
+    if (v === 'activity') { S.seenAt = new Date().toISOString(); store.set('orbit_seen', S.seenAt); }
+    render(); $('#sc') && ($('#sc').scrollTop = 0); if (v === 'search') setTimeout(() => $('#q2') && $('#q2').focus(), 50); },
+  back() { S.view = S.view === 'project' ? 'projects' : 'home'; S.q = ''; render(); },
+  goRequests() { S.view = 'team'; S.teamTab = 'requests'; render(); },
+  myFilter(el) { S.view = 'mytasks'; S.myFilter = el.dataset.f; render(); },
+  teamTab(el) { S.teamTab = el.dataset.t; render(); },
+  actTab(el) { S.actTab = el.dataset.t; render(); },
+  mode(el) { S.mode = el.dataset.m; store.set('orbit_mode', S.mode); render(); },
+  toggleMine() { S.mine = !S.mine; render(); },
+  collapse(el) { S.collapsed[el.dataset.s] = !S.collapsed[el.dataset.s]; render(); },
+  calNav(el) { const d = +el.dataset.d; if (!d) S.calMonth = todayStr().slice(0, 7); else { const [y, m] = S.calMonth.split('-').map(Number); const n = new Date(y, m - 1 + d, 1); S.calMonth = n.getFullYear() + '-' + pad(n.getMonth() + 1); } render(); },
+  openProject(el) { S.view = 'project'; S.projectId = el.dataset.id; S.q = ''; S.addingCol = null; if (window.innerWidth < 900) S.taskId = null; render(); $('#sc') && ($('#sc').scrollTop = 0); },
+  openTask(el) { S.taskId = el.dataset.id; render({ keepInsp: false }); const is = $('.insp-scroll'); if (is) is.scrollTop = 0; },
+  closeTask() { S.taskId = null; render(); },
+  scopeMenu(el) {
+    const items = [{ label: 'All Teams', checked: S.scope === 'all', onClick: () => { S.scope = 'all'; store.set('orbit_scope', 'all'); render(); } }];
+    D().properties.forEach(p => {
+      const ts = D().teams.filter(t => t.propertyCode === p.code); if (!ts.length) return;
+      items.push('-', { header: p.code + ' · ' + p.name });
+      ts.forEach(t => items.push({ label: t.name, checked: S.scope === t.id, onClick: () => { S.scope = t.id; store.set('orbit_scope', t.id); if (S.view === 'project') S.view = 'projects'; render(); } }));
+    });
+    openMenu(el, items);
+  },
+  async toggleDone(el) {
+    const t = taskById(el.dataset.id); if (!t) return;
+    const nowDone = !isDone(t);
+    el.classList.add('pop');
+    await saveTask({ id: t.id, status: nowDone ? 'done' : 'todo' }, nowDone ? 'Marked complete' : null);
+  },
+  statusMenu(el) { const t = taskById(el.dataset.id); openMenu(el, Object.keys(STATUS).map(k => ({ html: pillHtml(STATUS[k]), checked: t.status === k, onClick: () => saveTask({ id: t.id, status: k }) }))); },
+  prioMenu(el) { const t = taskById(el.dataset.id); openMenu(el, ['urgent', 'high', 'medium', 'low', 'none'].map(k => ({ label: PRIO[k].l, icon: `<span style="color:${cvar(PRIO[k].c)}">${ic('flag', 's')}</span>`, checked: (t.priority || 'none') === k, onClick: () => saveTask({ id: t.id, priority: k }) }))); },
+  moveMenu(el) {
+    const t = taskById(el.dataset.id);
+    const list = D().projects.filter(p => p.teamId === t.teamId && !p.archived);
+    openMenu(el, [{ label: 'No Project', checked: !t.projectId, onClick: () => saveTask({ id: t.id, projectId: '' }) }, '-',
+      ...list.map(p => ({ label: (p.icon ? p.icon + ' ' : '') + p.name, checked: t.projectId === p.id, onClick: () => saveTask({ id: t.id, projectId: p.id }, 'Moved to ' + p.name) }))]);
+  },
+  taskMenu(el) {
+    const t = taskById(el.dataset.id);
+    const items = [];
+    if (t.parentId) items.push({ label: 'Open Parent Task', icon: ic('sub', 's'), onClick: () => { S.taskId = t.parentId; render(); } });
+    items.push({ label: 'Copy Title', icon: ic('doc', 's'), onClick: () => navigator.clipboard.writeText(t.title).then(() => toast('Copied'), () => toast('Couldn’t copy on this device', true)) });
+    if (t.createdBy === me().id || canManage(t.teamId)) items.push('-', { label: 'Delete Task', danger: true, icon: ic('trash', 's'), onClick: async () => {
+      if (!await confirmBox({ title: 'Delete this task?', msg: `“${t.title}”, its subtasks, comments and files will be removed for everyone.`, ok: 'Delete', danger: true })) return;
+      await run('deleteTask', { id: t.id }, 'Task deleted'); S.taskId = t.parentId || null; await sync();
+    } });
+    openMenu(el, items);
+  },
+  async saveTitle(el) { const v = el.value.trim(); const t = taskById(el.dataset.id); if (!v) { el.value = t.title; return; } if (v !== t.title) await saveTask({ id: t.id, title: v }); },
+  async saveNotes(el) { const t = taskById(el.dataset.id); if (el.value !== (t.notes || '')) await saveTask({ id: t.id, notes: el.value }); },
+  async saveDue(el) { await saveTask({ id: el.dataset.id, due: el.value }); },
+  async clearDue(el) { await saveTask({ id: el.dataset.id, due: '' }); },
+  pickAssignees(el) {
+    const t = taskById(el.dataset.id);
+    const people = D().users.filter(u => u.status === 'active' && (u.teamId === t.teamId || u.role === 'admin'));
+    const sel = new Set(t.assignees || []);
+    openDialog({ title: 'Assign To', ok: 'Done', body: `<p class="label-sm" style="margin-top:4px">Choose one or more people from ${esc(teamLabel(teamById(t.teamId)))}.</p>
+      <div class="group teamlist">${people.map(u => `<button class="row ${sel.has(u.id) ? 'on' : ''}" data-pick="${u.id}" style="--inset:60px">${av(u)}<span class="lbl"><div style="font-weight:600">${esc(u.name)}</div><div class="muted" style="font-size:13px">${esc(u.jobTitle || ROLE[u.role])}</div></span><span class="tick">${ic('check')}</span></button>`).join('')}</div>`,
+      onOpen: root => $$('[data-pick]', root).forEach(b => b.onclick = () => { b.classList.toggle('on'); }),
+      onOk: async root => { const ids = $$('[data-pick].on', root).map(b => b.dataset.pick); await saveTask({ id: t.id, assignees: ids }); } });
+  },
+  async addSub(el) { const v = el.value.trim(); if (!v) return; el.value = ''; const r = await run('saveTask', { task: { parentId: el.dataset.id, title: v } }); upsert('tasks', r); render(); setTimeout(() => $('#addsub') && $('#addsub').focus(), 0); },
+  async quickAdd(el) {
+    const v = el.value.trim(); if (!v) return; el.value = '';
+    const p = projById(S.projectId);
+    const r = await run('saveTask', { task: { projectId: p.id, title: v, status: el.dataset.s, assignees: S.mine ? [me().id] : [] } });
+    upsert('tasks', r); const keepId = el.id; render();
+    setTimeout(() => { const n = document.getElementById(keepId); n && n.focus(); }, 0);
+  },
+  addCard(el) { S.addingCol = el.dataset.s; render(); setTimeout(() => $('#addcol') && $('#addcol').focus(), 0); },
+  async sendComment(el) {
+    const box = $('#cmt'); const v = box.value.trim(); if (!v) return;
+    box.value = ''; const r = await run('addComment', { taskId: el.dataset.id, text: v }); upsert('comments', r); render();
+    const is = $('.insp-scroll'); if (is) is.scrollTop = is.scrollHeight;
+  },
+  async delComment(el) { if (!await confirmBox({ title: 'Delete comment?', ok: 'Delete', danger: true })) return; await run('deleteComment', { id: el.dataset.id }); D().comments = D().comments.filter(c => c.id !== el.dataset.id); render(); },
+  async upload(el) {
+    const files = [...el.files]; el.value = '';
+    const limit = API.live ? 10 * 1048576 : 1.5 * 1048576;
+    for (const f of files) {
+      if (f.size > limit) { toast(`${f.name} is larger than ${API.live ? '10 MB' : '1.5 MB (demo limit)'}.`, true); continue; }
+      toast('Uploading ' + f.name + '…');
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+      try { const att = await run('upload', { taskId: el.dataset.id, name: f.name, type: f.type, size: f.size, data }, 'Uploaded ' + f.name); const t = taskById(el.dataset.id); t.attachments = (t.attachments || []).concat([att]); render(); } catch (e) { }
+    }
+  },
+  async removeFile(el) {
+    if (!await confirmBox({ title: 'Remove this file?', msg: 'It will be removed from the task for everyone.', ok: 'Remove', danger: true })) return;
+    await run('removeAttachment', { taskId: el.dataset.id, attId: el.dataset.f }); const t = taskById(el.dataset.id); t.attachments = t.attachments.filter(a => a.id !== el.dataset.f); render();
+  },
+  newTask() {
+    const pid = S.view === 'project' ? S.projectId : '';
+    const projs = projects();
+    openDialog({ title: 'New Task', ok: 'Add', body: `<div class="fields" style="margin-top:4px">
+      <input class="field" id="nt-title" placeholder="Task title" autofocus aria-label="Task title">
+      <textarea class="field" id="nt-notes" placeholder="Notes (optional)" style="min-height:70px" aria-label="Notes"></textarea></div>
+      <div class="group" style="margin-top:14px">
+        <div class="row"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><select class="sel" id="nt-proj" aria-label="Project"><option value="">No Project</option>${projs.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc((p.icon ? p.icon + ' ' : '') + p.name)}</option>`).join('')}</select></div>
+        <div class="row"><span class="ico" style="background:var(--orange)">${ic('person')}</span><span class="lbl">Assign to</span><select class="sel" id="nt-who" aria-label="Assign to"></select></div>
+        <div class="row"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Due date</span><input type="date" class="date" id="nt-due" aria-label="Due date"></div>
+        <div class="row"><span class="ico" style="background:var(--yellow)">${ic('flag')}</span><span class="lbl">Priority</span><select class="sel" id="nt-prio" aria-label="Priority">${['none', 'low', 'medium', 'high', 'urgent'].map(k => `<option value="${k}">${PRIO[k].l}</option>`).join('')}</select></div>
+      </div>`,
+      onOpen: root => {
+        const fill = () => { const p = projById($('#nt-proj', root).value); const tid = p ? p.teamId : scopeTeamId();
+          const people = D().users.filter(u => u.status === 'active' && (u.teamId === tid || u.role === 'admin'));
+          $('#nt-who', root).innerHTML = `<option value="">Nobody</option>` + people.map(u => `<option value="${u.id}" ${u.id === me().id ? 'selected' : ''}>${esc(u.name)}${u.id === me().id ? ' (Me)' : ''}</option>`).join(''); };
+        fill(); $('#nt-proj', root).onchange = fill;
+        $('#nt-title', root).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-dact="ok"]', root).click(); } });
+      },
+      onOk: async root => {
+        const title = $('#nt-title', root).value.trim(); if (!title) { toast('Give the task a title.', true); return false; }
+        const who = $('#nt-who', root).value;
+        const r = await run('saveTask', { task: { title, notes: $('#nt-notes', root).value, projectId: $('#nt-proj', root).value, teamId: scopeTeamId(),
+          assignees: who ? [who] : [], due: $('#nt-due', root).value, priority: $('#nt-prio', root).value } }, 'Task added');
+        upsert('tasks', r); S.taskId = r.id; render();
+      } });
+  },
+  newProject() { projectDialog(null); },
+  projStatus(el) { const p = projById(S.projectId); openMenu(el, Object.keys(PSTATUS).map(k => ({ html: pillHtml(PSTATUS[k]), checked: p.status === k, onClick: async () => { const r = await run('saveProject', { project: Object.assign({}, p, { status: k }) }); upsert('projects', r); render(); } }))); },
+  projMenu(el) {
+    const p = projById(S.projectId);
+    const items = [{ label: 'Edit Project', icon: ic('pencil', 's'), onClick: () => projectDialog(p) },
+      { label: p.archived ? 'Restore Project' : 'Archive Project', icon: ic('archive', 's'), onClick: async () => { const r = await run('saveProject', { project: Object.assign({}, p, { archived: !p.archived }) }, p.archived ? 'Project restored' : 'Project archived'); upsert('projects', r); render(); } }];
+    if (p.createdBy === me().id || canManage(p.teamId)) items.push('-', { label: 'Delete Project', danger: true, icon: ic('trash', 's'), onClick: async () => {
+      if (!await confirmBox({ title: 'Delete “' + p.name + '”?', msg: 'All of its tasks, comments and file links will be removed for everyone. This can’t be undone.', ok: 'Delete', danger: true })) return;
+      await run('deleteProject', { id: p.id }, 'Project deleted'); S.view = 'projects'; S.taskId = null; await sync();
+    } });
+    openMenu(el, items);
+  },
+  openActivity(el) {
+    const a = D().activity.find(x => x.id === el.dataset.id); if (!a) return;
+    if (a.type === 'signup') { S.view = 'team'; S.teamTab = 'requests'; render(); return; }
+    if (a.type === 'project' && projById(a.refId)) { S.view = 'project'; S.projectId = a.refId; render(); return; }
+    if (taskById(a.refId)) { S.taskId = a.refId; render({ keepInsp: false }); return; }
+    toast('That item no longer exists.', true);
+  },
+  openUser(el) { const u = userById(el.dataset.id); if (u) userDialog(u, false); },
+  approveUser(el) { const u = userById(el.dataset.id); if (u) userDialog(u, true); },
+  async declineUser(el) {
+    const u = userById(el.dataset.id);
+    if (!await confirmBox({ title: 'Decline ' + u.name + '?', msg: 'Their request will be removed. They can sign up again later.', ok: 'Decline', danger: true })) return;
+    await run('removeUser', { userId: u.id }, 'Request declined'); await sync();
+  },
+  changePin() {
+    openDialog({ title: 'Change PIN', ok: 'Save', body: `<div class="fields" style="margin-top:6px">
+      <label class="label-sm" for="cp-old">Current PIN</label><input class="field" id="cp-old" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" autofocus>
+      <label class="label-sm" for="cp-new" style="margin-top:8px">New 4-digit PIN</label><input class="field" id="cp-new" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password">
+      <label class="label-sm" for="cp-new2" style="margin-top:8px">Confirm new PIN</label><input class="field" id="cp-new2" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"></div>`,
+      onOk: async root => {
+        const o = $('#cp-old', root).value, n = $('#cp-new', root).value, n2 = $('#cp-new2', root).value;
+        if (n !== n2) { toast('The new PINs don’t match.', true); return false; }
+        await run('resetPin', { userId: me().id, oldPin: o, pin: n }, 'PIN changed');
+      } });
+  },
+  theme(el) { const t = el.dataset.t; store.set('orbit_theme', t); applyTheme(); render(); },
+  async resetDemo() { if (!await confirmBox({ title: 'Reset demo data?', msg: 'All demo projects and changes on this device go back to the starting example.', ok: 'Reset', danger: true })) return; LocalDB.reset(); signedOut('Demo data reset. Sign in again.'); },
+  async signOut() {
+    if (!await confirmBox({ title: 'Sign out of ' + CONFIG.APP_NAME + '?', msg: 'You’ll need your property code, username and PIN to sign in again.', ok: 'Sign Out', danger: true })) return;
+    try { await API.call('logout'); } catch (e) { }
+    signedOut('');
+  },
+  manageOrg() { orgDialog(); }
+};
+
+function projectDialog(p) {
+  const isNew = !p; p = p || { name: '', description: '', color: 'blue', icon: '📁', status: 'on_track', due: '' };
+  const teams = D().teams;
+  openDialog({ title: isNew ? 'New Project' : 'Edit Project', ok: isNew ? 'Create' : 'Save', body: `
+    <div style="display:flex;justify-content:center;margin:6px 0 14px"><span class="picon lg" id="pj-prev" style="background:${cvar(p.color)};width:72px;height:72px;border-radius:20px;font-size:36px">${esc(p.icon || '📁')}</span></div>
+    <div class="fields"><input class="field" id="pj-name" placeholder="Project name" value="${esc(p.name)}" autofocus aria-label="Project name">
+    <textarea class="field" id="pj-desc" placeholder="What is this project about?" style="min-height:70px" aria-label="Description">${esc(p.description || '')}</textarea></div>
+    <div class="group-title">Look</div>
+    <div class="group"><div class="swatches">${PCOLORS.map(c => `<button data-sw="${c}" class="${p.color === c ? 'on' : ''}" style="background:${cvar(c)}" aria-label="${c}"></button>`).join('')}</div>
+      <div class="emojis">${PICONS.map(e => `<button data-em="${e}" class="${p.icon === e ? 'on' : ''}" aria-label="Icon ${e}">${e}</button>`).join('')}</div></div>
+    <div class="group-title">Details</div>
+    <div class="group">
+      ${isNew && isAdminU() ? `<div class="row"><span class="ico" style="background:var(--indigo)">${ic('people')}</span><span class="lbl">Team</span><select class="sel" id="pj-team" aria-label="Team">${teams.map(t => `<option value="${t.id}" ${t.id === scopeTeamId() ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div>` : ''}
+      <div class="row"><span class="ico" style="background:var(--green)">${ic('flag')}</span><span class="lbl">Status</span><select class="sel" id="pj-status" aria-label="Status">${Object.keys(PSTATUS).map(k => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${PSTATUS[k].l}</option>`).join('')}</select></div>
+      <div class="row"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Deadline</span><input type="date" class="date" id="pj-due" value="${esc(p.due || '')}" aria-label="Deadline"></div>
+    </div>`,
+    onOpen: root => {
+      let color = p.color, icon = p.icon;
+      const prev = $('#pj-prev', root);
+      $$('[data-sw]', root).forEach(b => b.onclick = () => { $$('[data-sw]', root).forEach(x => x.classList.remove('on')); b.classList.add('on'); color = b.dataset.sw; prev.style.background = cvar(color); root.dataset.color = color; });
+      $$('[data-em]', root).forEach(b => b.onclick = () => { $$('[data-em]', root).forEach(x => x.classList.remove('on')); b.classList.add('on'); icon = b.dataset.em; prev.textContent = icon; root.dataset.icon = icon; });
+      root.dataset.color = color; root.dataset.icon = icon;
+    },
+    onOk: async root => {
+      const name = $('#pj-name', root).value.trim(); if (!name) { toast('Give the project a name.', true); return false; }
+      const obj = Object.assign({}, isNew ? {} : p, { name, description: $('#pj-desc', root).value, color: root.dataset.color, icon: root.dataset.icon,
+        status: $('#pj-status', root).value, due: $('#pj-due', root).value });
+      if (isNew) obj.teamId = $('#pj-team', root) ? $('#pj-team', root).value : scopeTeamId();
+      const r = await run('saveProject', { project: obj }, isNew ? 'Project created' : 'Project saved');
+      upsert('projects', r);
+      if (isNew) { S.view = 'project'; S.projectId = r.id; S.mode = S.mode || 'list'; }
+      render();
+    } });
+}
+
+function userDialog(u, approving) {
+  const manage = canManage(u.teamId) && !(u.role === 'admin' && !isAdminU());
+  const self = u.id === me().id;
+  const roles = isAdminU() ? ['member', 'head', 'admin'] : ['member', 'head'];
+  const body = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px 0 10px;text-align:center">${av(u, 'xl')}
+      <div style="font-size:22px;font-weight:700">${esc(u.name)}</div><div class="muted">@${esc(u.username)} · ${esc(teamLabel(teamById(u.teamId)))}</div>${roleChip(u)}</div>
+    ${manage ? `<div class="group-title">Job Title</div><input class="field" id="ud-job" value="${esc(u.jobTitle || '')}" placeholder="e.g. Graphic Designer" aria-label="Job title">
+      ${self ? '' : `<div class="group-title">Role</div><div class="seg" id="ud-role" style="display:flex">${roles.map(r => `<button data-role="${r}" class="${(u.role || 'member') === r ? 'on' : ''}" style="flex:1">${ROLE[r]}</button>`).join('')}</div>
+      <p class="group-foot">Department heads can approve people, assign roles and manage their team.${isAdminU() ? ' Main admins see every team.' : ''}</p>`}
+      ${isAdminU() && !self ? `<div class="group-title">Team</div><div class="group"><div class="row"><span class="lbl">Team</span><select class="sel" id="ud-team" aria-label="Team" style="max-width:240px">${D().teams.map(t => `<option value="${t.id}" ${t.id === u.teamId ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div></div>` : ''}
+      ${approving || self ? '' : `<div class="group-title">Access</div><div class="group">
+        <div class="row"><span class="ico" style="background:var(--blue)">${ic('lock')}</span><span class="lbl">Reset PIN</span><input class="field gray" id="ud-pin" type="password" inputmode="numeric" maxlength="4" placeholder="New PIN" style="width:110px;height:34px;font-size:15px" aria-label="New PIN"><button class="btn tinted" data-act-local="pin" style="height:32px">Set</button></div>
+        <button class="row" data-act-local="toggle"><span class="ico" style="background:var(--gray)">${ic('power')}</span><span class="lbl">${u.status === 'disabled' ? 'Turn On Account' : 'Turn Off Account'}</span></button>
+        <button class="row" data-act-local="remove" style="color:var(--red)"><span class="ico" style="background:var(--red)">${ic('trash')}</span><span class="lbl">Remove from ${CONFIG.APP_NAME}</span></button></div>`}`
+    : `<div class="group" style="margin-top:12px"><div class="row"><span class="lbl">Job title</span><span class="val"><span>${esc(u.jobTitle || '—')}</span></span></div>
+       <div class="row"><span class="lbl">Open tasks</span><span class="val tnum">${D().tasks.filter(t => (t.assignees || []).includes(u.id) && !isDone(t)).length}</span></div></div>`}`;
+  openDialog({ title: approving ? 'Approve Request' : 'Team Member', ok: manage ? (approving ? 'Approve' : 'Save') : '', cancel: manage ? 'Cancel' : 'Close', body,
+    onOpen: root => {
+      $$('[data-role]', root).forEach(b => b.onclick = () => { $$('[data-role]', root).forEach(x => x.classList.remove('on')); b.classList.add('on'); });
+      $$('[data-act-local]', root).forEach(b => b.onclick = async () => {
+        const k = b.dataset.actLocal;
+        try {
+          if (k === 'pin') { const pin = $('#ud-pin', root).value; await run('resetPin', { userId: u.id, pin }, 'PIN reset for ' + u.name.split(' ')[0]); $('#ud-pin', root).value = ''; }
+          if (k === 'toggle') { await run('updateUser', { userId: u.id, patch: { status: u.status === 'disabled' ? 'active' : 'disabled' } }, u.status === 'disabled' ? 'Account turned on' : 'Account turned off'); closeDialog(); sync(); }
+          if (k === 'remove') { if (!await confirmBox({ title: 'Remove ' + u.name + '?', msg: 'They’ll be signed out and lose access. Their tasks and comments stay.', ok: 'Remove', danger: true })) return;
+            await run('removeUser', { userId: u.id }, 'Removed ' + u.name); closeDialog(); sync(); }
+        } catch (e) { }
+      });
+    },
+    onOk: async root => {
+      const patch = { jobTitle: $('#ud-job', root).value };
+      const r = $('#ud-role .on', root); if (r) patch.role = r.dataset.role;
+      const tm = $('#ud-team', root); if (tm) patch.teamId = tm.value;
+      if (approving) patch.status = 'active';
+      await run('updateUser', { userId: u.id, patch }, approving ? u.name.split(' ')[0] + ' can now sign in' : 'Saved');
+      await sync();
+    } });
+}
+
+function orgDialog() {
+  const body = () => D().properties.map(p => `<div class="group-title">${esc(p.code)} · ${esc(p.name)}</div><div class="group">
+      ${D().teams.filter(t => t.propertyCode === p.code).map(t => { const n = D().users.filter(u => u.teamId === t.id).length;
+        return `<div class="row"><span class="dot" style="background:${cvar(t.color)}"></span><span class="lbl">${esc(t.name)}</span><span class="val tnum">${n} ${n === 1 ? 'person' : 'people'}</span>
+        ${n ? '' : `<button class="ibtn" data-org="delteam" data-id="${t.id}" aria-label="Delete team ${esc(t.name)}">${ic('trash', 's')}</button>`}</div>`; }).join('')}
+      <div class="addrow">${ic('plus')}<input placeholder="Add team" data-org-add="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div>`).join('') +
+    `<div class="group-title">Add Property</div><div class="fields"><input class="field" id="op-code" placeholder="Property code, e.g. DXBPI" style="text-transform:uppercase" aria-label="Property code">
+      <input class="field" id="op-name" placeholder="Property name" aria-label="Property name"><button class="btn primary" data-org="addprop" style="height:44px">Add Property</button></div>
+      <p class="group-foot">People type the property code when they sign up, then choose their team.</p>`;
+  const wire = root => {
+    $$('[data-org-add]', root).forEach(i => i.onkeydown = async e => { if (e.key !== 'Enter' || !i.value.trim()) return;
+      try { await run('saveTeam', { team: { propertyCode: i.dataset.orgAdd, name: i.value.trim(), color: PCOLORS[Math.floor(Math.random() * 10)] } }, 'Team added'); await sync(); $('.dlg-body', root).innerHTML = body(); wire(root); } catch (e) { } });
+    $$('[data-org="delteam"]', root).forEach(b => b.onclick = async () => { try { await run('deleteTeam', { id: b.dataset.id }, 'Team deleted'); await sync(); $('.dlg-body', root).innerHTML = body(); wire(root); } catch (e) { } });
+    const ap = $('[data-org="addprop"]', root); if (ap) ap.onclick = async () => { try { await run('saveProperty', { property: { code: $('#op-code', root).value, name: $('#op-name', root).value } }, 'Property added'); await sync(); $('.dlg-body', root).innerHTML = body(); wire(root); } catch (e) { } };
+  };
+  openDialog({ title: 'Properties & Teams', ok: '', cancel: 'Done', body: body(), onOpen: wire });
+}
+
+/* ---------------- auth screens ---------------- */
+const last = store.get('orbit_last', {});
+const A = { step: last.code ? 'signin' : 'welcome', code: last.code || '', username: last.username || '', pin: '', name: '', jobTitle: '', pin2: '', property: null, teams: [], teamId: '', err: '', busy: false };
+function pinField(id, label) {
+  return `<div class="pin-wrap"><label class="label-sm" for="${id}">${label}</label><div class="pin" data-pinbox="${id}">${'<i></i>'.repeat(4)}
+    <input id="${id}" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" data-input="pin" aria-label="${label}"></div></div>`;
+}
+function renderAuth() {
+  const demo = !API.live ? `<div class="demo"><b>Preview with sample data.</b> Property <code>DXBAI</code> · <code>shri</code> / <code>1234</code> (main admin), <code>aisha</code> / <code>1111</code> (department head), <code>rahul</code> / <code>2222</code> (team member).</div>` : '';
+  const back = to => `<button class="btn plain back" data-auth="${to}">${ic('chevL', 's')} Back</button>`;
+  const err = A.err ? `<div class="err" role="alert">${esc(A.err)}</div>` : '';
+  let c = '';
+  switch (A.step) {
+    case 'welcome':
+      c = `<div class="auth-hero"><span class="app-icon">${ic('orbit')}</span><h1>${CONFIG.APP_NAME}</h1><p>Projects, tasks and deadlines for every team at your property.</p></div>
+        <button class="btn primary large" data-auth="signin">Sign In</button><button class="btn gray large" data-auth="code">Create Account</button>${demo}`;
+      break;
+    case 'signin':
+      c = `${back('welcome')}<div class="auth-hero" style="padding-top:0"><h1>Sign In</h1><p>Use your property code, username and PIN.</p></div>
+        <div class="fields"><input class="field" id="a-code" placeholder="Property code" value="${esc(A.code)}" autocapitalize="characters" autocomplete="organization" aria-label="Property code" style="text-transform:uppercase">
+        <input class="field" id="a-user" placeholder="Username" value="${esc(A.username)}" autocapitalize="none" autocomplete="username" aria-label="Username"></div>
+        ${pinField('a-pin', 'PIN')}${err}
+        <button class="btn primary large" data-auth="doSignin" ${A.busy ? 'disabled' : ''}>${A.busy ? '<span class="spin" style="border-top-color:#fff;width:18px;height:18px"></span>' : 'Sign In'}</button>
+        <p class="fine">Forgot your PIN? Ask your department head to reset it.</p>${demo}`;
+      break;
+    case 'code':
+      c = `${back('welcome')}<div class="auth-hero" style="padding-top:0"><span class="app-icon" style="width:64px;height:64px;border-radius:17px">${ic('building')}</span><h1>Your Property</h1><p>Enter the code your department head shared, such as DXBAI.</p></div>
+        <input class="field" id="a-code" placeholder="Property code" value="${esc(A.code)}" autocapitalize="characters" aria-label="Property code" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-weight:600">
+        ${err}<button class="btn primary large" data-auth="doCode" ${A.busy ? 'disabled' : ''}>${A.busy ? 'Checking…' : 'Continue'}</button>${demo}`;
+      break;
+    case 'team':
+      c = `${back('code')}<div class="auth-hero" style="padding-top:0"><h1>Choose Your Team</h1><p>${esc(A.property.name)}</p></div>
+        <div class="group teamlist">${A.teams.map(t => `<button class="row ${A.teamId === t.id ? 'on' : ''}" data-auth="pickTeam" data-id="${t.id}"><span class="dot" style="background:${cvar(t.color)}"></span><span class="lbl">${esc(t.name)}</span><span class="tick">${ic('check')}</span></button>`).join('') || '<div class="row muted">This property has no teams yet. Ask the main admin to add one.</div>'}</div>
+        ${err}<button class="btn primary large" data-auth="toDetails" ${A.teamId ? '' : 'disabled'}>Continue</button>`;
+      break;
+    case 'details': {
+      const team = A.teams.find(t => t.id === A.teamId);
+      c = `${back('team')}<div class="auth-hero" style="padding-top:0"><h1>Create Account</h1><p>${esc(A.property.code)} · ${esc(team ? team.name : '')}</p></div>
+        <div class="fields"><input class="field" id="a-name" placeholder="Full name" value="${esc(A.name)}" autocomplete="name" aria-label="Full name">
+        <input class="field" id="a-job" placeholder="Job title (optional)" value="${esc(A.jobTitle)}" aria-label="Job title">
+        <input class="field" id="a-user" placeholder="Choose a username" value="${esc(A.username)}" autocapitalize="none" autocomplete="username" aria-label="Username"></div>
+        ${pinField('a-pin', 'Choose a 4-digit PIN')}${pinField('a-pin2', 'Confirm PIN')}${err}
+        <button class="btn primary large" data-auth="doSignup" ${A.busy ? 'disabled' : ''}>${A.busy ? 'Sending…' : 'Request Access'}</button>
+        <p class="fine">Your department head or the main admin approves new accounts.</p>`;
+      break;
+    }
+    case 'sent':
+    case 'pending':
+      c = `<div class="auth-hero"><span class="app-icon" style="background:linear-gradient(150deg,var(--orange),var(--pink))">${ic('clock')}</span>
+        <h1>${A.step === 'sent' ? 'Request Sent' : 'Waiting for Approval'}</h1>
+        <p>${A.step === 'sent' ? 'Your department head or the main admin will approve your account. Once approved, sign in with your username and PIN.' : 'Your account hasn’t been approved yet. Ask your department head to approve it under Team › Requests.'}</p></div>
+        <button class="btn primary large" data-auth="signin">Back to Sign In</button>`;
+      break;
+  }
+  app().innerHTML = `<div class="auth"><div class="auth-card glass">${c}</div></div>`;
+  $$('[data-pinbox]').forEach(b => { const inp = $('input', b); dots(b, inp.value); });
+  const f = $('.auth input:not([type=tel])') || $('.auth input');
+  if (f && window.innerWidth > 899) f.focus();
+}
+function dots(box, v) { $$('i', box).forEach((d, i) => d.classList.toggle('on', i < v.length)); }
+function shakePins() { $$('.pin').forEach(p => { p.classList.remove('shake'); void p.offsetWidth; p.classList.add('shake'); }); }
+const AUTH = {
+  welcome() { A.step = 'welcome'; A.err = ''; renderAuth(); },
+  signin() { A.step = 'signin'; A.err = ''; renderAuth(); },
+  code() { A.step = 'code'; A.err = ''; renderAuth(); },
+  team() { A.step = 'team'; A.err = ''; renderAuth(); },
+  async doSignin() {
+    A.code = $('#a-code').value.trim().toUpperCase(); A.username = $('#a-user').value.trim().toLowerCase(); const pin = $('#a-pin').value;
+    if (!A.code || !A.username) { A.err = 'Enter your property code and username.'; renderAuth(); return; }
+    if (pin.length !== 4) { A.err = 'Enter your 4-digit PIN.'; renderAuth(); shakePins(); return; }
+    A.busy = true; A.err = ''; renderAuth();
+    try {
+      const r = await API.call('login', { propertyCode: A.code, username: A.username, pin });
+      store.set('orbit_last', { code: A.code, username: A.username });
+      Session.set(r.token, r.user); A.busy = false; S.view = 'home'; S.scope = store.get('orbit_scope', 'all');
+      render(); await sync();
+    } catch (e) {
+      A.busy = false;
+      if (e.message === 'PENDING') { A.step = 'pending'; A.err = ''; renderAuth(); return; }
+      A.err = e.message; renderAuth(); shakePins();
+    }
+  },
+  async doCode() {
+    A.code = $('#a-code').value.trim().toUpperCase();
+    if (!A.code) { A.err = 'Enter your property code.'; renderAuth(); return; }
+    A.busy = true; A.err = ''; renderAuth();
+    try { const r = await API.call('teams', { propertyCode: A.code }); A.property = r.property; A.teams = r.teams; A.teamId = ''; A.step = 'team'; }
+    catch (e) { A.err = e.message; }
+    A.busy = false; renderAuth();
+  },
+  pickTeam(el) { A.teamId = el.dataset.id; renderAuth(); },
+  toDetails() { if (!A.teamId) return; A.step = 'details'; A.err = ''; A.username = ''; renderAuth(); },
+  async doSignup() {
+    A.name = $('#a-name').value.trim(); A.jobTitle = $('#a-job').value.trim(); A.username = $('#a-user').value.trim().toLowerCase();
+    const pin = $('#a-pin').value, pin2 = $('#a-pin2').value;
+    if (pin.length !== 4) { A.err = 'Choose a 4-digit PIN.'; renderAuth(); shakePins(); return; }
+    if (pin !== pin2) { A.err = 'The two PINs don’t match.'; renderAuth(); shakePins(); return; }
+    A.busy = true; A.err = ''; renderAuth();
+    try { await API.call('signup', { propertyCode: A.code, teamId: A.teamId, name: A.name, jobTitle: A.jobTitle, username: A.username, pin });
+      store.set('orbit_last', { code: A.code, username: A.username }); A.step = 'sent'; }
+    catch (e) { A.err = e.message; }
+    A.busy = false; renderAuth();
+  }
+};
+
+/* ---------------- events ---------------- */
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-auth]');
+  if (a) { AUTH[a.dataset.auth](a, e); return; }
+  if (e.target.closest('#ov [data-dact], #menu, #alert')) return;
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  if (el.closest('#ov') && !['openTask', 'openProject'].includes(el.dataset.act)) return;
+  const fn = ACT[el.dataset.act];
+  if (fn) { e.stopPropagation(); Promise.resolve().then(() => fn(el, e)).catch(() => { }); }
+});
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (e.key === 'Enter' && t.dataset && t.dataset.enter && ACT[t.dataset.enter]) { e.preventDefault(); ACT[t.dataset.enter](t); return; }
+  if (e.key === 'Enter' && !e.shiftKey && t.dataset && t.dataset.enterSend && window.innerWidth > 899) { e.preventDefault(); ACT.sendComment(t); return; }
+  if (e.key === 'Enter' && t.id === 'ttl') { e.preventDefault(); t.blur(); return; }
+  if (e.key === 'Enter' && t.closest && t.closest('.auth') && t.tagName === 'INPUT') {
+    const btn = $('.auth .btn.primary'); if (btn && !btn.disabled) btn.click(); return;
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role=button][data-act]')) { e.preventDefault(); t.click(); return; }
+  if (e.key === 'Escape') {
+    if ($('#alert').innerHTML) { $('#alert').innerHTML = ''; return; }
+    if ($('#menu').innerHTML) { $('#menu').innerHTML = ''; return; }
+    if (DLG) { closeDialog(); return; }
+    if (S.addingCol) { S.addingCol = null; render(); return; }
+    if (S.taskId) { S.taskId = null; render(); }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); const q = $('#q'); if (q && q.offsetParent) q.focus(); else ACT.go({ dataset: { v: 'search' } }); }
+});
+document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.change && ACT[t.dataset.change]) ACT[t.dataset.change](t); });
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.input === 'pin') { t.value = t.value.replace(/\D/g, '').slice(0, 4); dots(t.closest('.pin'), t.value);
+    if (t.value.length === 4 && A.step === 'signin') AUTH.doSignin();
+    if (t.value.length === 4 && t.id === 'a-pin' && A.step === 'details') $('#a-pin2') && $('#a-pin2').focus(); }
+  if (t.dataset.input === 'search') { S.q = t.value.trim(); renderContent(); }
+  if (t.dataset.input === 'search2') { S.q = t.value.trim(); const r = $('#results'); if (r) r.innerHTML = S.q ? searchResultsHtml(S.q, true) : ''; }
+  if (t.classList.contains('ttl-edit') || t.id === 'cmt') autosize();
+});
+document.addEventListener('focusout', e => { if (e.target.id === 'addcol' && !e.target.value.trim()) setTimeout(() => { if (S.addingCol) { S.addingCol = null; render(); } }, 150); });
+function autosize() { $$('.ttl-edit, #cmt').forEach(t => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, t.id === 'cmt' ? 140 : 400) + 'px'; }); }
+function onScrollTitle() { const sc = $('#sc'), tb = $('#tb'); if (sc && tb) tb.classList.toggle('scrolled', sc.scrollTop > 44); }
+document.addEventListener('scroll', e => { if (e.target.id === 'sc') onScrollTitle(); }, true);
+
+/* board drag & drop */
+let dragId = null;
+document.addEventListener('dragstart', e => { const c = e.target.closest && e.target.closest('[data-drag]'); if (!c) return; dragId = c.dataset.drag; c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (x) { } });
+document.addEventListener('dragend', e => { const c = e.target.closest && e.target.closest('[data-drag]'); c && c.classList.remove('dragging'); $$('.col.drop').forEach(x => x.classList.remove('drop')); });
+document.addEventListener('dragover', e => { const col = e.target.closest && e.target.closest('[data-col]'); if (!col || !dragId) return; e.preventDefault(); $$('.col.drop').forEach(x => x !== col && x.classList.remove('drop')); col.classList.add('drop'); });
+document.addEventListener('drop', e => {
+  const col = e.target.closest && e.target.closest('[data-col]'); if (!col || !dragId) return; e.preventDefault();
+  const t = taskById(dragId); const st = col.dataset.col; dragId = null; col.classList.remove('drop');
+  if (t && t.status !== st) saveTask({ id: t.id, status: st, order: Date.now() }, 'Moved to ' + STATUS[st].l);
+});
+
+/* theme */
+function applyTheme() { const t = store.get('orbit_theme', 'system'); if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }
+
+/* boot */
+applyTheme();
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Session.token && API.live) sync({ soft: true }); });
+setInterval(() => { if (!document.hidden && Session.token && API.live) sync({ soft: true }); }, 30000);
+render();
+if (Session.token) sync();
+
+</script>
+<script>if('serviceWorker' in navigator && location.protocol==='https:'){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
+</body>
+</html>
