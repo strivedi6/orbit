@@ -512,6 +512,28 @@ var ACTIONS = {
     return publicUser(DB.get('users', target.id));
   },
 
+  /* Main admin or a department head adds someone directly — no approval step. */
+  addUser: function (DB, r) {
+    var u = auth(DB, r.token), n = r.user || {};
+    var team = DB.get('teams', n.teamId);
+    if (!team) fail('Choose a team.');
+    if (!canManageTeam(u, team.id)) fail('Only the main admin or this team’s department head can add people here.');
+    var name = str(n.name, 60), username = lc(n.username), pin = str(n.pin), role = n.role || 'member';
+    if (name.length < 2) fail('Enter their full name.');
+    if (!/^[a-z0-9._-]{3,20}$/.test(username)) fail('Usernames are 3–20 letters, numbers, dots or dashes.');
+    if (!/^\d{4}$/.test(pin)) fail('The PIN must be exactly 4 digits.');
+    if ((isAdmin(u) ? ['member', 'head', 'admin'] : ['member', 'head']).indexOf(role) < 0) fail('You can’t give that role.');
+    if (DB.find('users', function (x) { return x.propertyCode === team.propertyCode && lc(x.username) === username; })) fail('That username is already taken at ' + team.propertyCode + '.');
+    var salt = uid('s');
+    var nu = { id: uid('u'), propertyCode: team.propertyCode, teamId: team.id, username: username, name: name, jobTitle: str(n.jobTitle, 60), role: role, status: 'active',
+      pinHash: pinHash(salt, username, pin), salt: salt, failed: 0, lockedUntil: '', avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      createdAt: nowISO(), approvedBy: u.id, approvedAt: nowISO(), photo: '', photoV: '' };
+    if (n.photo) { nu.photo = cleanImage(n.photo); nu.photoV = String(Date.now()); }
+    DB.insert('users', nu);
+    log(DB, u, team.id, 'approved', nu.id, 'added ' + name + ' to ' + team.name, [nu.id]);
+    return publicUser(nu);
+  },
+
   removeUser: function (DB, r) {
     var u = auth(DB, r.token), target = DB.get('users', r.userId);
     if (!target) return { ok: true };

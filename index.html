@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Orbit Projects</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Orbit">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -14,7 +14,6 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
-:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:0}
 [hidden]{display:none!important}
 /* Orbit — same design language as My Budget: iOS 27 Liquid Glass on phones,
    a floating Mac-style sidebar and task panel on desktop. Accent follows the property's colour. */
@@ -161,7 +160,7 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 #app{height:100%;position:relative;z-index:1}
 .shell{height:100%;display:flex}
 .main{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;position:relative;transition:margin-right .55s var(--ease),transform .5s var(--ease),filter .5s var(--ease)}
-.navbar{position:relative;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(var(--safe-t) + 10px) 16px 8px;min-height:calc(var(--safe-t) + 62px)}
+.navbar{position:relative;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(var(--safe-t) + 4px) 16px 6px;min-height:calc(var(--safe-t) + 54px)}
 .navbar::before{content:"";position:absolute;inset:0 0 -24px 0;z-index:-1;pointer-events:none;
   background:linear-gradient(to bottom,var(--bg) 0%,color-mix(in srgb,var(--bg) 85%,transparent) 55%,transparent 100%);
   -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);-webkit-mask-image:linear-gradient(to bottom,#000 60%,transparent);mask-image:linear-gradient(to bottom,#000 60%,transparent);
@@ -187,7 +186,7 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 .hello .large-title{margin-top:0}
 .prop-badge{display:inline-flex;align-items:center;gap:8px;margin:0 4px 16px;height:30px;padding:0 12px 0 4px;border-radius:999px;background:var(--surface);font-size:13px;font-weight:600;color:var(--text);letter-spacing:-.08px}
 .prop-badge .plogo{width:22px;height:22px}
-.plogo{border-radius:7px;display:grid;place-items:center;overflow:hidden;color:#fff;font-weight:700;font-size:11px;flex:none;background:var(--accent);font-family:var(--font-round)}
+.plogo{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;overflow:hidden;color:#fff;font-weight:700;font-size:11px;flex:none;background:var(--accent);font-family:var(--font-round)}
 .plogo img{width:100%;height:100%;object-fit:contain;background:#fff}
 .mob-only{display:none}
 .scope-pill{display:none!important}
@@ -393,6 +392,7 @@ button.person:active{background:var(--fill-4)}
 .composer textarea{flex:1;border:0;box-shadow:inset 0 0 0 .5px var(--sep);background:var(--surface);border-radius:22px;padding:10px 16px;min-height:44px;max-height:140px;resize:none;outline:none;font-size:17px;line-height:1.3;color:var(--text)}
 .meta-line{font-size:12px;color:var(--text-3);margin:20px 4px 0;text-align:center;letter-spacing:0}
 .insp-scrim{position:fixed;inset:0;z-index:49;background:var(--dim);opacity:0;pointer-events:none;transition:opacity .45s}
+.grab-h{display:none}
 
 /* ---------- sheets, alerts, menus, toast ---------- */
 .sheet-back{position:fixed;inset:0;z-index:60;background:var(--dim);opacity:0;transition:opacity .35s}
@@ -533,10 +533,12 @@ button.person:active{background:var(--fill-4)}
   .scope-pill{display:inline-flex!important}
   .desk-only{display:none!important}
   .smart{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .insp{inset:0;border-radius:0;background:var(--bg);box-shadow:-20px 0 50px rgba(0,0,0,.2)}
-  .insp-bar{padding-top:calc(var(--safe-t) + 8px);min-height:calc(var(--safe-t) + 60px)}
-  .insp-bar .back{display:flex}
-  body.insp-open .main{transform:translateX(-28%);filter:brightness(.85)}
+  .insp{left:0;right:0;bottom:0;top:calc(var(--safe-t) + 10px);border-radius:38px 38px 0 0;background:var(--bg);box-shadow:0 -10px 40px rgba(0,0,0,.2);
+    transform:translateY(105%);transition:transform .5s var(--ease)}
+  .insp-bar{position:relative;padding-top:18px}
+  .grab-h{display:block;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--fill)}
+  body.insp-open .insp-scrim{opacity:1;pointer-events:auto}
+  body.insp-open .main{transform:scale(.94);filter:brightness(.9);border-radius:24px;overflow:hidden}
   .board{grid-auto-columns:minmax(82vw,1fr);scroll-snap-type:x mandatory;margin:0 -16px;padding:8px 16px 20px}
   .col{scroll-snap-align:center}
   .cal .d{min-height:64px;padding:3px} .cal .ev{font-size:10px;padding:1px 3px}
@@ -558,7 +560,7 @@ button.person:active{background:var(--fill-4)}
   .main{margin-left:var(--side)}
   body.insp-open .main{margin-right:var(--insp-w)}
   .navbar{padding:14px 24px 8px 12px;min-height:64px}
-  .navbar .nb-title{text-align:left;opacity:1;transform:none;font-size:20px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:10px}
+  .navbar .nb-title{visibility:hidden}
   .scroll{padding:0 28px 56px 12px}
   .insp{top:12px;right:12px;bottom:12px;width:calc(var(--insp-w) - 12px);border-radius:28px;background:var(--panel);
     box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
@@ -976,6 +978,28 @@ var ACTIONS = {
       log(DB, u, f.teamId || target.teamId, 'approved', target.id, 'approved ' + target.name + ' to join the team', [target.id]);
     if (f.status === 'disabled') DB.all('sessions').filter(function (s) { return s.userId === target.id; }).forEach(function (s) { DB.remove('sessions', s.id); });
     return publicUser(DB.get('users', target.id));
+  },
+
+  /* Main admin or a department head adds someone directly — no approval step. */
+  addUser: function (DB, r) {
+    var u = auth(DB, r.token), n = r.user || {};
+    var team = DB.get('teams', n.teamId);
+    if (!team) fail('Choose a team.');
+    if (!canManageTeam(u, team.id)) fail('Only the main admin or this team’s department head can add people here.');
+    var name = str(n.name, 60), username = lc(n.username), pin = str(n.pin), role = n.role || 'member';
+    if (name.length < 2) fail('Enter their full name.');
+    if (!/^[a-z0-9._-]{3,20}$/.test(username)) fail('Usernames are 3–20 letters, numbers, dots or dashes.');
+    if (!/^\d{4}$/.test(pin)) fail('The PIN must be exactly 4 digits.');
+    if ((isAdmin(u) ? ['member', 'head', 'admin'] : ['member', 'head']).indexOf(role) < 0) fail('You can’t give that role.');
+    if (DB.find('users', function (x) { return x.propertyCode === team.propertyCode && lc(x.username) === username; })) fail('That username is already taken at ' + team.propertyCode + '.');
+    var salt = uid('s');
+    var nu = { id: uid('u'), propertyCode: team.propertyCode, teamId: team.id, username: username, name: name, jobTitle: str(n.jobTitle, 60), role: role, status: 'active',
+      pinHash: pinHash(salt, username, pin), salt: salt, failed: 0, lockedUntil: '', avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      createdAt: nowISO(), approvedBy: u.id, approvedAt: nowISO(), photo: '', photoV: '' };
+    if (n.photo) { nu.photo = cleanImage(n.photo); nu.photoV = String(Date.now()); }
+    DB.insert('users', nu);
+    log(DB, u, team.id, 'approved', nu.id, 'added ' + name + ' to ' + team.name, [nu.id]);
+    return publicUser(nu);
   },
 
   removeUser: function (DB, r) {
@@ -1719,7 +1743,6 @@ function homeHtml() {
   const d = new Date(), prop = currentProperty();
   const tile = (f, icon, color, n, label) => `<button data-act="myFilter" data-f="${f}"><div class="top"><span class="ico" style="background:${cvar(color)}">${ic(icon)}</span><span class="num tnum" data-count>${n}</span></div><span class="nm">${label}</span></button>`;
   const pend = pendingUsers();
-  const acts = D().activity.filter(a => inScope(a.teamId)).slice(0, 8);
   const projs = projects();
   return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
     <p class="lt-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(isAdminU() ? (S.scope === 'all' ? 'All teams' : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
@@ -1729,8 +1752,7 @@ function homeHtml() {
       <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="d">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
     <div class="section-title">Projects <span class="n tnum">${projs.length}</span><span class="sp"></span><button class="link" data-act="newProject">New Project</button></div>
     ${projs.length ? `<div class="pgrid">${projs.map(projectCard).join('')}</div>` : `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Create the first project for your team.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`}
-    <div class="section-title">Recent Activity<span class="sp"></span><button class="link" data-act="go" data-v="activity">See All</button></div>
-    <div class="menu">${acts.length ? acts.map(actRow).join('') : emptyState('bell', 'gray', 'Nothing yet', 'Updates from your team will show here.')}</div>`;
+`;
 }
 function projectCard(p) {
   const pr = progress(p.id), ps = PSTATUS[p.status] || PSTATUS.on_track;
@@ -1881,7 +1903,8 @@ function teamHtml() {
     body += `<div class="section-title">Invite People</div><div class="menu"><div class="li" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--accent)">${ic('key')}</span>
       <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="sub" style="font-size:15px;margin-top:2px;letter-spacing:-.23px">New people enter property code <b class="tnum">${esc(me().propertyCode)}</b>, choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
   }
-  return `<h1 class="large-title">Team</h1><p class="lt-sub">${esc(isAdminU() ? (S.scope === 'all' ? 'Everyone across all properties' : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
+  const addBtn = canApprove ? `<button class="btn primary sm" data-act="addMember" style="margin:0 4px 0 auto">${ic('personPlus', 's')}Add Member</button>` : '';
+  return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(isAdminU() ? (S.scope === 'all' ? 'Everyone across all properties' : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
     ${canApprove ? `<div class="seg" id="seg-team"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}${body}`;
 }
 
@@ -1975,8 +1998,8 @@ function inspectorHtml(t) {
   const creator = userById(t.createdBy), pend = Outbox.pendingIds();
   const ass = (t.assignees || []).map(userById).filter(Boolean);
   return `<div class="insp-bar">
-      <button class="back" data-act="closeTask">${ic('chevL')}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw">${p ? esc(p.name) : 'Back'}</span></button>
-      <button class="circle glass desk-only" data-act="closeTask" aria-label="Close">${ic('x')}</button><span class="sp"></span>
+      <span class="grab-h"></span>
+      <button class="circle glass" data-act="closeTask" aria-label="Close">${ic('x')}</button><span class="sp"></span>
       <button class="btn sm" data-act="toggleDone" data-id="${t.id}" style="${done ? 'color:var(--green);background:color-mix(in srgb,var(--green) 15%,transparent)' : 'background:var(--surface);color:var(--text)'}">${ic('check', 's')}${done ? 'Completed' : 'Complete'}</button>
       <button class="circle glass" data-act="taskMenu" data-id="${t.id}" aria-label="More options">${ic('more')}</button>
     </div>
@@ -2022,26 +2045,26 @@ function fileRow(t, a) {
     <small>${fileSize(a.size || 0)} · ${esc(by ? by.name : '')} · ${ago(a.at)}</small></div>
     <button class="circle sm" data-act="removeFile" data-id="${t.id}" data-f="${a.id}" aria-label="Remove ${esc(a.name)}">${ic('trash', 's')}</button></div>`;
 }
-/* Swipe from the left edge closes the task on phones, like going back in iOS. */
-(function edgeSwipe() {
-  let x0 = null, y0 = 0, dx = 0, el = null, going = false;
+/* On phones the task opens as a sheet from the bottom; drag the top bar down to close it. */
+(function dragDown() {
+  let y0 = null, dy = 0, el = null, going = false;
   document.addEventListener('touchstart', e => {
     el = $('#insp');
     if (!el || !el.classList.contains('open') || innerWidth >= 1024) return;
-    const t = e.touches[0]; if (t.clientX > 28) return;
-    x0 = t.clientX; y0 = t.clientY; dx = 0; going = false;
+    const bar = e.target.closest && e.target.closest('.insp-bar'); const sc = $('#iscroll');
+    if (!bar && !(sc && sc.contains(e.target) && sc.scrollTop <= 0)) return;
+    if (e.target.closest('button, input, textarea, select')) return;
+    y0 = e.touches[0].clientY; dy = 0; going = false;
   }, { passive: true });
   document.addEventListener('touchmove', e => {
-    if (x0 === null) return;
-    const t = e.touches[0]; dx = Math.max(0, t.clientX - x0);
-    if (!going) { if (Math.abs(t.clientY - y0) > 14 && dx < 10) { x0 = null; return; } if (dx < 8) return; going = true; }
-    el.style.transition = 'none'; el.style.transform = 'translateX(' + dx + 'px)';
-    const m = $('#main'); if (m) { m.style.transition = 'none'; m.style.transform = 'translateX(' + (-28 + 28 * dx / innerWidth) + '%)'; }
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    if (!going) { if (dy < 6) return; going = true; }
+    el.style.transition = 'none'; el.style.transform = 'translateY(' + dy + 'px)';
   }, { passive: true });
   const end = () => {
-    if (x0 === null) return; x0 = null;
-    el.style.transition = ''; const m = $('#main'); if (m) { m.style.transition = ''; m.style.transform = ''; }
-    if (going && dx > innerWidth * 0.3) { S.taskId = null; renderInsp(); render({ soft: true }); } else el.style.transform = '';
+    if (y0 === null) return; y0 = null; el.style.transition = '';
+    if (going && dy > 110) { S.taskId = null; render({ soft: true }); } else el.style.transform = '';
   };
   document.addEventListener('touchend', end, { passive: true });
   document.addEventListener('touchcancel', end, { passive: true });
@@ -2360,8 +2383,42 @@ const ACT = {
     try { await API.call('logout'); } catch (e) { }
     signedOut('');
   },
-  manageOrg() { orgDialog(); }
+  manageOrg() { orgDialog(); },
+  addMember() { addMemberDialog(); }
 };
+
+function addMemberDialog() {
+  const teams = isAdminU() ? D().teams : D().teams.filter(t => t.id === me().teamId);
+  const roles = isAdminU() ? ['member', 'head', 'admin'] : ['member', 'head'];
+  const defTeam = isAdminU() && S.scope !== 'all' ? S.scope : me().teamId;
+  let photo = '';
+  openDialog({ title: 'Add Member', ok: 'Add', body: `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin:4px 0 16px">
+      <button class="photo-pick" id="am-photo" aria-label="Add photo"><span class="av xl" style="background:var(--fill)">${ic('camera', 'l')}</span><span class="edit">${ic('plus')}</span></button>
+      <span class="sub" style="font-size:13px">Photo (optional)</span></div>
+    <label class="field"><span>Full name</span><input class="input" id="am-name" placeholder="e.g. Maria Santos" autocomplete="off" autofocus></label>
+    <label class="field"><span>Job title</span><input class="input" id="am-job" placeholder="e.g. Graphic Designer" autocomplete="off"></label>
+    <label class="field"><span>Username</span><input class="input" id="am-user" placeholder="e.g. maria" autocapitalize="none" autocomplete="off"></label>
+    <label class="field"><span>4-digit PIN</span><input class="input" id="am-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="They can change it later"></label>
+    <div class="menu" style="margin-top:6px"><div class="li"><span class="ico" style="background:var(--indigo)">${ic('people')}</span><span class="lbl">Team</span>
+      <select class="sel" id="am-team" aria-label="Team">${teams.map(t => `<option value="${t.id}" ${t.id === defTeam ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div></div>
+    <div class="section-title">Role</div><div class="seg" id="am-role" style="display:flex">${roles.map(r => `<button data-role="${r}" class="${r === 'member' ? 'on' : ''}" style="flex:1">${ROLE[r]}</button>`).join('')}</div>
+    <p class="section-foot">They can sign in straight away with property code, username and this PIN. Share the PIN with them privately.</p>`,
+    onOpen: root => {
+      $$('[data-role]', root).forEach(b => b.onclick = () => { $$('[data-role]', root).forEach(x => x.classList.remove('on')); b.classList.add('on'); Motion.haptic(); });
+      const nm = $('#am-name', root), us = $('#am-user', root);
+      nm.oninput = () => { if (!us.dataset.touched) us.value = firstName(nm.value).toLowerCase().replace(/[^a-z0-9._-]/g, ''); };
+      us.oninput = () => { us.dataset.touched = '1'; };
+      $('#am-photo', root).onclick = async () => { const d = await pickImage({ max: 256, square: true }); if (!d) return; photo = d; $('#am-photo .av', root).outerHTML = `<span class="av xl"><img src="${d}" alt=""></span>`; };
+    },
+    onOk: async root => {
+      const user = { name: $('#am-name', root).value.trim(), jobTitle: $('#am-job', root).value.trim(), username: $('#am-user', root).value.trim().toLowerCase(),
+        pin: $('#am-pin', root).value, teamId: $('#am-team', root).value, role: ($('#am-role .on', root) || {}).dataset ? $('#am-role .on', root).dataset.role : 'member', photo };
+      const nu = await run('addUser', { user }, user.name + ' added');
+      if (photo) { PH[nu.id] = { v: nu.photoV, data: photo }; store.set('orbit_photos', PH); }
+      await sync({ force: true });
+    } });
+}
 
 function swatchesHtml(sel, name) {
   const custom = sel && sel[0] === '#';
@@ -2983,7 +3040,7 @@ function applyTheme() { const t = store.get('orbit_theme', 'system'); if (t === 
 
 /* boot */
 (function boot() {
-  ['insp:aside', 'tabroot:div', 'lockroot:div'].forEach(s => { const [id, tag] = s.split(':'); if (!document.getElementById(id)) { const el = document.createElement(tag); el.id = id; if (id === 'insp') el.className = 'insp'; document.body.appendChild(el); } });
+  ['insp-scrim:div', 'insp:aside', 'tabroot:div', 'lockroot:div'].forEach(s => { const [id, tag] = s.split(':'); if (!document.getElementById(id)) { const el = document.createElement(tag); el.id = id; if (id === 'insp') el.className = 'insp'; if (id === 'insp-scrim') { el.className = 'insp-scrim'; el.dataset.act = 'closeTask'; } document.body.appendChild(el); } });
   if (!$('#toast')) { const t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
   applyTheme();
   setInterval(() => { if (!document.hidden && Session.token && S.data && API.live) sync({ soft: true }); }, 20000);
