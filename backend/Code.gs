@@ -91,7 +91,7 @@ var SheetDB = (function () {
       var o = {};
       for (var j = 0; j < head.length; j++) {
         var k = head[j], v = vals[i][j];
-        if (JSON_COLS[k]) { try { v = v ? JSON.parse(v) : []; } catch (e) { v = []; } }
+        if (JSON_COLS[k]) { try { v = v ? JSON.parse(v) : (k === 'reactions' ? {} : []); } catch (e) { v = k === 'reactions' ? {} : []; } }
         else if (v instanceof Date) v = k === 'due' ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd') : v.toISOString();
         else if (v === 'true') v = true; else if (v === 'false') v = false;
         else if (k === 'order' || k === 'failed') v = Number(v) || 0;
@@ -106,7 +106,7 @@ var SheetDB = (function () {
   }
   function strip(o) { if (!o) return null; var c = JSON.parse(JSON.stringify(o)); delete c.__row; return c; }
   function toRow(head, o) {
-    return head.map(function (k) { var v = o[k]; if (JSON_COLS[k]) return JSON.stringify(v || []); if (v === null || v === undefined) return ''; return typeof v === 'boolean' ? String(v) : v; });
+    return head.map(function (k) { var v = o[k]; if (JSON_COLS[k]) return JSON.stringify(v || (k === 'reactions' ? {} : [])); if (v === null || v === undefined) return ''; return typeof v === 'boolean' ? String(v) : v; });
   }
   return {
     reset: function () { cache = {}; },
@@ -154,10 +154,11 @@ var TABLES = {
   sessions:   ['id','userId','createdAt','lastSeen'],
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
-  comments:   ['id','teamId','taskId','userId','text','createdAt'],
+  comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1 };
+var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var STATUSES = ['todo','doing','review','done'];
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
@@ -440,16 +441,33 @@ var ACTIONS = {
     var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId), text = str(r.text, 4000);
     if (!text) fail('Write a comment first.');
     if (r.id && DB.get('comments', r.id)) return DB.get('comments', r.id);
-    var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO() };
+    var parent = r.parentId ? DB.get('comments', r.parentId) : null;
+    if (parent && parent.parentId) parent = DB.get('comments', parent.parentId) || parent;
+    var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO(), parentId: parent ? parent.id : '', reactions: {} };
     DB.insert('comments', c);
-    log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', [parent.userId]);
+    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
     return c;
+  },
+
+  /* Tap a reaction to add it; tap it again to take it back. */
+  reactComment: function (DB, r) {
+    var u = auth(DB, r.token), c = DB.get('comments', r.id);
+    if (!c || !canSeeTeam(u, c.teamId)) fail('That comment no longer exists.');
+    if (REACTIONS.indexOf(r.emoji) < 0) fail('Choose one of the reactions.');
+    var re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
+    var list = re[r.emoji] || [], i = list.indexOf(u.id);
+    if (i >= 0) list.splice(i, 1); else list.push(u.id);
+    if (list.length) re[r.emoji] = list; else delete re[r.emoji];
+    DB.update('comments', c.id, { reactions: re });
+    return DB.get('comments', c.id);
   },
 
   deleteComment: function (DB, r) {
     var u = auth(DB, r.token), c = DB.get('comments', r.id);
     if (!c) return { ok: true };
-    if (!(c.userId === u.id || canManageTeam(u, c.teamId))) fail('You can only delete your own comments.');
+    if (!(c.userId === u.id || isAdmin(u))) fail('Only the person who wrote this comment or the main admin can delete it.');
+    DB.all('comments').filter(function (x) { return x.parentId === c.id; }).forEach(function (x) { DB.remove('comments', x.id); });
     DB.remove('comments', c.id);
     return { ok: true };
   },
@@ -560,6 +578,14 @@ var ACTIONS = {
     if (p.name !== undefined) { f.name = str(p.name, 60); if (f.name.length < 2) fail('Enter your full name.'); }
     if (p.jobTitle !== undefined) f.jobTitle = str(p.jobTitle, 60);
     if (p.photo !== undefined) { f.photo = cleanImage(p.photo); f.photoV = String(Date.now()); }
+    if (p.username !== undefined && lc(p.username) !== lc(u.username)) {
+      var nu = lc(p.username);
+      if (!/^[a-z0-9._-]{3,20}$/.test(nu)) fail('Usernames are 3–20 letters, numbers, dots or dashes.');
+      if (DB.find('users', function (x) { return x.id !== u.id && x.propertyCode === u.propertyCode && lc(x.username) === nu; })) fail('That username is already taken at ' + u.propertyCode + '.');
+      if (pinHash(u.salt, u.username, str(p.pin)) !== u.pinHash) fail('Enter your current PIN to change your username.');
+      var salt = uid('s');
+      f.username = nu; f.salt = salt; f.pinHash = pinHash(salt, nu, str(p.pin));
+    }
     DB.update('users', u.id, f);
     return publicUser(DB.get('users', u.id));
   },

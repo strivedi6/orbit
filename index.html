@@ -437,6 +437,38 @@ button.person:active{background:var(--fill-4)}
 #toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
 #toast.err{color:var(--red)}
 
+/* ---------- subtasks inline, comments ---------- */
+.twist{width:22px;height:24px;display:grid;place-items:center;color:var(--text-3);flex:none;border-radius:6px;margin:0 -4px 0 -6px;transition:transform .35s var(--spring),color .2s}
+.twist svg{transition:transform .35s var(--spring)}
+.twist.open svg{transform:rotate(90deg)}
+button.twist:hover{color:var(--accent);background:var(--fill-4)}
+.trow.nested{padding-left:66px;background:color-mix(in srgb,var(--fill-4) 50%,transparent)}
+.trow.nested .ttl{font-size:15px}
+.trow.nested .check{width:20px;height:20px}
+.trow+.trow.nested::before,.trow.nested+.trow::before{left:66px}
+.cmt-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:5px 0 0 6px}
+.cmt-a{font-size:13px;font-weight:600;color:var(--text-2);height:28px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;letter-spacing:-.08px}
+.cmt-a:hover{background:var(--fill-4);color:var(--accent)}
+.cmt-a.del:hover{color:var(--red)}
+.rx{height:28px;padding:0 9px;border-radius:999px;background:var(--surface);box-shadow:inset 0 0 0 .5px var(--sep);font-size:14px;display:inline-flex;align-items:center;gap:5px;transition:transform .3s var(--spring)}
+.rx span{font-size:12px;font-weight:600;color:var(--text-2)}
+.rx.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}
+.rx.on span{color:var(--accent)}
+.rx:active{transform:scale(.9)}
+.cmt.reply{margin-left:40px}
+.cmt.reply .bubble{border-top-left-radius:20px}
+.rx-pop{flex-direction:row;min-width:0;padding:6px;gap:2px;border-radius:999px;transform-origin:bottom left}
+.rx-pop button{width:42px;height:42px;font-size:22px;justify-content:center;padding:0;border-radius:50%;min-height:0;transition:transform .3s var(--spring)}
+.rx-pop button:hover{transform:scale(1.2);background:transparent}
+.rx-pop button.on{background:var(--accent-soft)}
+.reply-bar{display:flex;align-items:center;gap:8px;padding:8px 14px 0;font-size:14px;color:var(--text-2);letter-spacing:-.15px;flex:none;
+  background:color-mix(in srgb,var(--panel) 85%,transparent);border-top:.5px solid var(--sep)}
+.reply-bar b{color:var(--text)}
+.reply-bar .sp{flex:1}
+.reply-bar+.composer{border-top:0}
+.sb-acts{display:flex;flex-direction:column;gap:2px}
+.sb-item.danger,.sb-item.danger svg.i{color:var(--red)}
+
 /* ---------- motion helpers ---------- */
 .reveal{opacity:0;transform:translateY(22px) scale(.985);transition:opacity .5s var(--ease),transform .75s cubic-bezier(.34,1.2,.64,1)}
 .reveal.in{opacity:1;transform:none}
@@ -546,6 +578,7 @@ button.person:active{background:var(--fill-4)}
   .person .acts{width:100%;padding-left:56px}
   .person .acts .btn{flex:1}
   .search.desk-only{display:none}
+  .twist,.trow.nested{display:none!important}
 }
 @media (max-width: 374px){ .keypad{grid-template-columns:repeat(3,72px);gap:14px 20px} .keypad button{width:72px;height:72px} }
 
@@ -556,6 +589,7 @@ button.person:active{background:var(--fill-4)}
   :root{--side:280px;--safe-t:0px;--safe-b:0px;--insp-w:calc((100vw - var(--side)) / 2)}
   body{font-size:15px;letter-spacing:-.23px}
   .tabdock,.tab-fade,#aurora{display:none}
+  .prop-badge{display:none}
   .sidebar{display:flex;flex-direction:column;gap:4px;position:fixed;z-index:30;top:12px;bottom:12px;left:12px;width:calc(var(--side) - 24px);padding:14px 12px 12px;border-radius:26px;overflow-y:auto;scrollbar-width:thin}
   .main{margin-left:var(--side)}
   body.insp-open .main{margin-right:var(--insp-w)}
@@ -622,10 +656,11 @@ var TABLES = {
   sessions:   ['id','userId','createdAt','lastSeen'],
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
-  comments:   ['id','teamId','taskId','userId','text','createdAt'],
+  comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1 };
+var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var STATUSES = ['todo','doing','review','done'];
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
@@ -908,16 +943,33 @@ var ACTIONS = {
     var u = auth(DB, r.token), t = taskOrFail(DB, u, r.taskId), text = str(r.text, 4000);
     if (!text) fail('Write a comment first.');
     if (r.id && DB.get('comments', r.id)) return DB.get('comments', r.id);
-    var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO() };
+    var parent = r.parentId ? DB.get('comments', r.parentId) : null;
+    if (parent && parent.parentId) parent = DB.get('comments', parent.parentId) || parent;
+    var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO(), parentId: parent ? parent.id : '', reactions: {} };
     DB.insert('comments', c);
-    log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', [parent.userId]);
+    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
     return c;
+  },
+
+  /* Tap a reaction to add it; tap it again to take it back. */
+  reactComment: function (DB, r) {
+    var u = auth(DB, r.token), c = DB.get('comments', r.id);
+    if (!c || !canSeeTeam(u, c.teamId)) fail('That comment no longer exists.');
+    if (REACTIONS.indexOf(r.emoji) < 0) fail('Choose one of the reactions.');
+    var re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
+    var list = re[r.emoji] || [], i = list.indexOf(u.id);
+    if (i >= 0) list.splice(i, 1); else list.push(u.id);
+    if (list.length) re[r.emoji] = list; else delete re[r.emoji];
+    DB.update('comments', c.id, { reactions: re });
+    return DB.get('comments', c.id);
   },
 
   deleteComment: function (DB, r) {
     var u = auth(DB, r.token), c = DB.get('comments', r.id);
     if (!c) return { ok: true };
-    if (!(c.userId === u.id || canManageTeam(u, c.teamId))) fail('You can only delete your own comments.');
+    if (!(c.userId === u.id || isAdmin(u))) fail('Only the person who wrote this comment or the main admin can delete it.');
+    DB.all('comments').filter(function (x) { return x.parentId === c.id; }).forEach(function (x) { DB.remove('comments', x.id); });
     DB.remove('comments', c.id);
     return { ok: true };
   },
@@ -1028,6 +1080,14 @@ var ACTIONS = {
     if (p.name !== undefined) { f.name = str(p.name, 60); if (f.name.length < 2) fail('Enter your full name.'); }
     if (p.jobTitle !== undefined) f.jobTitle = str(p.jobTitle, 60);
     if (p.photo !== undefined) { f.photo = cleanImage(p.photo); f.photoV = String(Date.now()); }
+    if (p.username !== undefined && lc(p.username) !== lc(u.username)) {
+      var nu = lc(p.username);
+      if (!/^[a-z0-9._-]{3,20}$/.test(nu)) fail('Usernames are 3–20 letters, numbers, dots or dashes.');
+      if (DB.find('users', function (x) { return x.id !== u.id && x.propertyCode === u.propertyCode && lc(x.username) === nu; })) fail('That username is already taken at ' + u.propertyCode + '.');
+      if (pinHash(u.salt, u.username, str(p.pin)) !== u.pinHash) fail('Enter your current PIN to change your username.');
+      var salt = uid('s');
+      f.username = nu; f.salt = salt; f.pinHash = pinHash(salt, nu, str(p.pin));
+    }
     DB.update('users', u.id, f);
     return publicUser(DB.get('users', u.id));
   },
@@ -1203,6 +1263,9 @@ const IC = {
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   sub: 'M6 4v10a2 2 0 0 0 2 2h10 M14 12l4 4-4 4',
   power: 'M12 2v10 M18.4 6.6a9 9 0 1 1-12.8 0',
+  refresh: 'M20 11a8 8 0 1 0-2.3 5.7 M20 4v7h-7',
+  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8.5 14a4 4 0 0 0 7 0 M9 9.5h.01 M15 9.5h.01',
+  reply: 'M9 14L4 9l5-5 M4 9h10a6 6 0 0 1 6 6v5',
   camera: 'M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   palette: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3.5 3H15a2 2 0 0 0-1.5 3.3A1.6 1.6 0 0 1 12 21z M7.5 11h.01 M10 7.5h.01 M14.5 7.5h.01 M17 11h.01',
   image: 'M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z M4 16l5-5 4 4 2-2 5 5 M15 9h.01'
@@ -1350,7 +1413,7 @@ const S = {
   data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
   scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
   collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', ''),
-  welcomed: false
+  welcomed: false, expanded: new Set(), replyTo: null
 };
 const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
 const me = () => D().me || Session.user || {};
@@ -1452,7 +1515,7 @@ const Outbox = {
       const op = batch[i], d = r.data;
       if (op.action === 'saveTask') upsert('tasks', d);
       else if (op.action === 'saveProject') upsert('projects', d);
-      else if (op.action === 'addComment') upsert('comments', d);
+      else if (op.action === 'addComment' || op.action === 'reactComment') upsert('comments', d);
       else if (op.action === 'updateUser') { upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
       else if (op.action === 'updateProfile') { S.data.me = Object.assign({}, me(), d); upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
     });
@@ -1502,9 +1565,16 @@ function applyLocal(o) {
     case 'addComment': {
       if (D().comments.find(c => c.id === o.id)) break;
       const t = taskById(o.taskId);
-      D().comments.push({ id: o.id, teamId: t ? t.teamId : '', taskId: o.taskId, userId: me().id, text: o.text, createdAt: now }); break;
+      D().comments.push({ id: o.id, teamId: t ? t.teamId : '', taskId: o.taskId, userId: me().id, text: o.text, createdAt: now, parentId: o.parentId || '', reactions: {} }); break;
     }
-    case 'deleteComment': S.data.comments = D().comments.filter(c => c.id !== o.id); break;
+    case 'deleteComment': S.data.comments = D().comments.filter(c => c.id !== o.id && c.parentId !== o.id); break;
+    case 'reactComment': {
+      const c = D().comments.find(x => x.id === o.id); if (!c) break;
+      const re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {}; const l = re[o.emoji] || [], i = l.indexOf(me().id);
+      if (i >= 0) l.splice(i, 1); else l.push(me().id);
+      if (l.length) re[o.emoji] = l; else delete re[o.emoji];
+      c.reactions = re; break;
+    }
     case 'removeAttachment': { const t = taskById(o.taskId); if (t) t.attachments = (t.attachments || []).filter(a => a.id !== o.attId); break; }
     case 'updateUser': {
       const u = D().users.find(x => x.id === o.userId); if (!u) break;
@@ -1656,6 +1726,8 @@ function sidebarHtml() {
     </div>
     <div class="sb-foot">
       <div class="sb-sync" id="sbsync" data-s="${Outbox.state}">${ic(Outbox.state === 'idle' ? 'cloud' : Outbox.state === 'saving' ? 'up' : 'alert')}<span>${esc(syncLabel())}</span></div>
+      <div class="sb-acts"><button class="sb-item" data-act="refresh">${ic('refresh')}<span class="lbl">Refresh</span></button>
+        <button class="sb-item danger" data-act="signOut">${ic('out')}<span class="lbl">Sign Out</span></button></div>
       <button class="me-btn" data-act="go" data-v="settings">${av(m, 'lg')}<div style="min-width:0;flex:1"><b>${esc(m.name)}</b><small>${esc(m.jobTitle || ROLE[m.role])}</small></div>${ic('gear', 's')}</button>
     </div>
   </nav>`;
@@ -1771,16 +1843,19 @@ function taskRow(t, opt = {}) {
   const nc = D().comments.filter(c => c.taskId === t.id).length, nf = (t.attachments || []).length;
   const p = projById(t.projectId), parent = t.parentId ? taskById(t.parentId) : null;
   const pending = opt.pend && opt.pend.has(t.id);
-  return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
-    <button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
+  const open = opt.expand && subs.length && S.expanded.has(t.id);
+  const twist = opt.expand ? (subs.length ? `<button class="twist ${open ? 'open' : ''}" data-act="twist" data-id="${t.id}" aria-label="${open ? 'Hide' : 'Show'} subtasks" aria-expanded="${open ? 'true' : 'false'}">${ic('chevR', 's')}</button>` : '<span class="twist"></span>') : '';
+  const nested = open ? subs.map(s => taskRow(s, { pend: opt.pend, nested: true })).join('') : '';
+  return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''} ${opt.nested ? 'nested' : ''} ${opt.expand ? 'has-twist' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
+    ${twist}<button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
     <div class="body"><div class="ttl">${esc(t.title)}</div>
       <div class="tsub">${opt.showProject && p ? `<span style="color:${cvar(p.color)};font-weight:600">${pdot(p)} ${esc(p.name)}</span>` : ''}
-        ${parent ? `<span>${ic('sub', 'xs')}${esc(parent.title)}</span>` : ''}
+        ${parent && !opt.nested ? `<span>${ic('sub', 'xs')}${esc(parent.title)}</span>` : ''}
         ${dueHtml(t)}${subs.length ? `<span>${ic('mytasks', 'xs')}${sd}/${subs.length}</span>` : ''}
         ${nc ? `<span>${ic('bubble', 'xs')}${nc}</span>` : ''}${nf ? `<span>${ic('clip', 'xs')}${nf}</span>` : ''}
         ${opt.showStatus && !done ? `<span style="color:${cvar(STATUS[t.status].c)}">${STATUS[t.status].l}</span>` : ''}</div></div>
     <div class="right">${pending ? '<span class="pending-dot" title="Saving"></span>' : ''}${flag(t.priority)}${avs(t.assignees)}</div>
-  </div>`;
+  </div>${nested}`;
 }
 
 function myTasksHtml() {
@@ -1798,7 +1873,7 @@ function myTasksHtml() {
     const use = f === 'today' ? buckets.slice(1, 2) : f === 'overdue' ? buckets.slice(0, 1) : buckets;
     body = use.map(([name, fn]) => {
       const list = open.filter(fn); if (!list.length) return '';
-      return `<div class="section-title" ${name === 'Overdue' ? 'style="color:var(--red)"' : ''}>${name} <span class="n tnum">${list.length}</span></div><div class="menu">${list.map(t => taskRow(t, { showProject: true, showStatus: true, pend })).join('')}</div>`;
+      return `<div class="section-title" ${name === 'Overdue' ? 'style="color:var(--red)"' : ''}>${name} <span class="n tnum">${list.length}</span></div><div class="menu">${list.map(t => taskRow(t, { showProject: true, showStatus: true, pend, expand: true })).join('')}</div>`;
     }).join('');
     if (!body) body = `<div class="menu" style="margin-top:14px">${emptyState('done', 'green', f === 'open' ? 'You’re all caught up' : 'Nothing here', f === 'open' ? 'No open tasks are assigned to you.' : 'No tasks match this filter.')}</div>`;
   }
@@ -1844,7 +1919,7 @@ function listHtml(p) {
   return Object.keys(STATUS).map(st => {
     const list = all.filter(t => t.status === st), closed = S.collapsed[st];
     return `<button class="sec-h ${closed ? 'closed' : ''}" data-act="collapse" data-s="${st}" aria-expanded="${!closed}">${ic('chevD', 's')}<span class="dot" style="background:${cvar(STATUS[st].c)}"></span>${STATUS[st].l}<span class="n tnum">${list.length}</span></button>
-      ${closed ? '' : `<div class="menu">${list.map(t => taskRow(t, { pend })).join('')}
+      ${closed ? '' : `<div class="menu">${list.map(t => taskRow(t, { pend, expand: true })).join('')}
         ${st !== 'done' ? `<div class="addrow">${ic('plus')}<input id="add-${st}" placeholder="Add a task" data-enter="quickAdd" data-s="${st}" aria-label="Add a task to ${STATUS[st].l}"></div>` : (list.length ? '' : `<div class="addrow" style="color:var(--text-3)">Completed tasks appear here</div>`)}</div>`}`;
   }).join('');
 }
@@ -2027,14 +2102,33 @@ function inspectorHtml(t) {
         <label class="link" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">${ic('upload', 's')} Upload<input type="file" hidden data-change="upload" data-id="${t.id}" multiple></label></div>
       <div class="menu" id="files">${(t.attachments || []).length ? t.attachments.map(a => fileRow(t, a)).join('') : `<div class="li sub" style="font-size:15px;--inset:16px">${ic('clip', 's')} Briefs, artwork or contracts (up to ${API.live ? '10 MB' : '1.5 MB in demo'})</div>`}</div>
       <div class="section-title">Comments <span class="n tnum">${comments.length || ''}</span></div>
-      <div class="thread" id="thread">${comments.map(c => { const u = userById(c.userId), mine = c.userId === me().id;
-        return `<div class="cmt ${mine ? 'mine' : ''} ${pend.has(c.id) ? 'pending' : ''}" data-cid="${c.id}">${av(u)}<div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}</time>
-        ${mine || canManage(t.teamId) ? `<button class="del" data-act="delComment" data-id="${c.id}">Delete</button>` : ''}</div><div class="tx">${esc(c.text)}</div></div></div>`; }).join('')
-        || '<p class="sub" style="margin:0 6px;font-size:15px;letter-spacing:-.23px">No comments yet. Ask a question or share an update.</p>'}</div>
+      <div class="thread" id="thread">${threadHtml(t, comments, pend) || '<p class="sub" style="margin:0 6px;font-size:15px;letter-spacing:-.23px">No comments yet. Ask a question or share an update.</p>'}</div>
       <p class="meta-line">Created by ${esc(creator ? creator.name : 'someone')} · ${fullTime(t.createdAt)}${t.completedAt ? '<br>Completed ' + fullTime(t.completedAt) : ''}</p>
     </div>
-    <div class="composer"><textarea id="cmt" rows="1" placeholder="Write a comment" aria-label="Write a comment" data-enter-send="1" data-id="${t.id}"></textarea>
+${S.replyTo && comments.find(c => c.id === S.replyTo) ? replyBar(comments.find(c => c.id === S.replyTo)) : ''}<div class="composer"><textarea id="cmt" rows="1" placeholder="${S.replyTo ? 'Write a reply' : 'Write a comment'}" aria-label="Write a comment" data-enter-send="1" data-id="${t.id}"></textarea>
       <button class="circle tint" data-act="sendComment" data-id="${t.id}" aria-label="Send comment">${ic('up')}</button></div>`;
+}
+function replyBar(c) {
+  const u = userById(c.userId);
+  return `<div class="reply-bar">${ic('reply', 's')}<span>Replying to <b>${esc(u ? firstName(u.name) : 'comment')}</b></span><span class="sp"></span><button class="circle sm" data-act="cancelReply" aria-label="Cancel reply">${ic('x', 's')}</button></div>`;
+}
+function threadHtml(t, comments, pend) {
+  const ids = new Set(comments.map(c => c.id));
+  const top = comments.filter(c => !c.parentId || !ids.has(c.parentId));
+  const one = (c, reply) => {
+    const u = userById(c.userId), mine = c.userId === me().id;
+    const re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
+    const chips = Object.keys(re).filter(k => (re[k] || []).length).map(k => {
+      const who = re[k].map(id => { const x = userById(id); return x ? firstName(x.name) : ''; }).filter(Boolean).join(', ');
+      return `<button class="rx ${re[k].includes(me().id) ? 'on' : ''}" data-act="react" data-id="${c.id}" data-e="${k}" title="${esc(who)}">${k}<span class="tnum">${re[k].length}</span></button>`;
+    }).join('');
+    return `<div class="cmt ${mine ? 'mine' : ''} ${reply ? 'reply' : ''} ${pend.has(c.id) ? 'pending' : ''}" data-cid="${c.id}">${av(u, reply ? 'sm' : '')}<div style="flex:1;min-width:0">
+      <div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}</time></div><div class="tx">${esc(c.text)}</div></div>
+      <div class="cmt-acts">${chips}<button class="cmt-a" data-act="reactMenu" data-id="${c.id}" aria-label="React">${ic('smile', 's')}</button>
+        <button class="cmt-a" data-act="replyTo" data-id="${reply ? c.parentId : c.id}">Reply</button>
+        ${mine || isAdminU() ? `<button class="cmt-a del" data-act="delComment" data-id="${c.id}">Delete</button>` : ''}</div></div></div>`;
+  };
+  return top.map(c => one(c, false) + comments.filter(r => r.parentId === c.id).map(r => one(r, true)).join('')).join('');
 }
 function fileRow(t, a) {
   const ext = (a.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
@@ -2268,12 +2362,31 @@ const ACT = {
   sendComment(el) {
     const box = $('#cmt'); const v = box.value.trim(); if (!v) return;
     box.value = ''; autosize();
-    op({ action: 'addComment', id: uidC('c'), taskId: el.dataset.id, text: v });
+    const parentId = S.replyTo; S.replyTo = null;
+    op({ action: 'addComment', id: uidC('c'), taskId: el.dataset.id, text: v, parentId: parentId || '' });
     renderInsp();
-    const is = $('#iscroll'); if (is) is.scrollTo({ top: is.scrollHeight, behavior: 'smooth' });
+    const is = $('#iscroll'); if (is && !parentId) is.scrollTo({ top: is.scrollHeight, behavior: 'smooth' });
     setTimeout(() => $('#cmt') && $('#cmt').focus(), 0);
   },
-  async delComment(el) { if (!await confirmBox({ title: 'Delete comment?', ok: 'Delete', danger: true })) return; op({ action: 'deleteComment', id: el.dataset.id }); render(); },
+  async delComment(el) {
+    const hasReplies = D().comments.some(c => c.parentId === el.dataset.id);
+    if (!await confirmBox({ title: 'Delete comment?', msg: hasReplies ? 'Its replies will be deleted too.' : '', ok: 'Delete', danger: true })) return;
+    op({ action: 'deleteComment', id: el.dataset.id }); render();
+  },
+  react(el) { Motion.haptic(); op({ action: 'reactComment', id: el.dataset.id, emoji: el.dataset.e }); renderInsp(); },
+  reactMenu(el) {
+    const c = D().comments.find(x => x.id === el.dataset.id); if (!c) return;
+    const re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
+    const root = $('#menu'), r = el.getBoundingClientRect();
+    root.innerHTML = `<div style="position:fixed;inset:0;z-index:94" data-mclose="1"></div><div class="menu-pop rx-pop" role="menu">${REACTIONS.map(e => `<button data-e="${e}" class="${(re[e] || []).includes(me().id) ? 'on' : ''}" aria-label="React ${e}">${e}</button>`).join('')}</div>`;
+    const m = $('.menu-pop', root);
+    m.style.left = Math.max(12, Math.min(r.left, innerWidth - m.offsetWidth - 12)) + 'px';
+    m.style.top = (r.top - m.offsetHeight - 8 < 12 ? r.bottom + 8 : r.top - m.offsetHeight - 8) + 'px';
+    root.onclick = e => { if (e.target.dataset.mclose) { root.innerHTML = ''; return; } const b = e.target.closest('[data-e]'); if (!b) return; root.innerHTML = ''; Motion.haptic(); op({ action: 'reactComment', id: c.id, emoji: b.dataset.e }); renderInsp(); };
+  },
+  replyTo(el) { S.replyTo = el.dataset.id; renderInsp(); setTimeout(() => { const b = $('#cmt'); if (b) b.focus(); }, 30); },
+  cancelReply() { S.replyTo = null; renderInsp(); },
+  twist(el) { const id = el.dataset.id; if (S.expanded.has(id)) S.expanded.delete(id); else S.expanded.add(id); render({ soft: true }); },
   async upload(el) {
     const files = [...el.files]; el.value = '';
     const limit = API.live ? 10 * 1048576 : 1.5 * 1048576, taskId = el.dataset.id;
@@ -2371,7 +2484,7 @@ const ACT = {
       } });
   },
   theme(el) { store.set('orbit_theme', el.dataset.t); applyTheme(); render(); },
-  async refresh() { toast('Refreshing…', false, true); await sync({ force: true }); toast('Up to date'); },
+  async refresh() { toast('Refreshing…', false, true); await Outbox.flush(); await sync({ force: true }); fetchPhotos(); toast('Up to date'); },
   async resetDemo() { if (!await confirmBox({ title: 'Reset demo data?', msg: 'All demo projects and changes on this device go back to the starting example.', ok: 'Reset', danger: true })) return; LocalDB.reset(); store.del('orbit_photos'); for (const k in PH) delete PH[k]; signedOut('Demo data reset. Sign in again.'); },
   async signOut() {
     if (Outbox.q.length || Outbox.busy) {
@@ -2458,6 +2571,7 @@ function projectDialog(p) {
     } });
 }
 
+function keepPhotoFor(u, data) { if (u && u.photoV) { PH[u.id] = { v: u.photoV, data }; store.set('orbit_photos', PH); } }
 function profileDialog() {
   const m = me(); let photo;
   openDialog({ title: 'Edit Profile', ok: 'Save', body: `
@@ -2465,15 +2579,30 @@ function profileDialog() {
       <button class="photo-pick" id="pp" aria-label="Choose photo">${av(m, 'xl')}<span class="edit">${ic('camera')}</span></button>
       <div style="display:flex;gap:8px"><button class="btn plain" id="pp-choose">Choose Photo</button>${photoOf(m) ? '<button class="btn plain" id="pp-remove" style="color:var(--red)">Remove</button>' : ''}</div></div>
     <label class="field"><span>Full name</span><input class="input" id="pf-name" value="${esc(m.name)}" autocomplete="name"></label>
-    <label class="field"><span>Job title</span><input class="input" id="pf-job" value="${esc(m.jobTitle || '')}" placeholder="e.g. Cluster Marketing Manager"></label>`,
+    <label class="field"><span>Job title</span><input class="input" id="pf-job" value="${esc(m.jobTitle || '')}" placeholder="e.g. Cluster Marketing Manager"></label>
+    <label class="field"><span>Username — you sign in with this</span><input class="input" id="pf-user" value="${esc(m.username)}" autocapitalize="none" autocomplete="username"></label>
+    <label class="field" id="pf-pin-f" hidden><span>Current PIN — needed to change your username</span><input class="input" id="pf-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password"></label>`,
     onOpen: root => {
       const choose = async () => { const d = await pickImage({ max: 256, square: true }); if (!d) return; photo = d; $('#pp .av', root).outerHTML = `<span class="av xl"><img src="${d}" alt=""></span>`; };
       $('#pp', root).onclick = choose; $('#pp-choose', root).onclick = choose;
+      const us = $('#pf-user', root); us.oninput = () => { $('#pf-pin-f', root).hidden = us.value.trim().toLowerCase() === m.username; };
       const rm = $('#pp-remove', root); if (rm) rm.onclick = () => { photo = ''; $('#pp .av', root).outerHTML = `<span class="av xl" style="background:${cvar(m.avatarColor)}">${esc(initials(m.name))}</span>`; rm.remove(); };
     },
-    onOk: root => {
+    onOk: async root => {
       const name = $('#pf-name', root).value.trim(); if (name.length < 2) { toast('Enter your full name.', true); return false; }
       const profile = { name, jobTitle: $('#pf-job', root).value.trim() }; if (photo !== undefined) profile.photo = photo;
+      const nu = $('#pf-user', root).value.trim().toLowerCase();
+      if (nu !== m.username) {
+        if (!/^[a-z0-9._-]{3,20}$/.test(nu)) { toast('Usernames are 3–20 letters, numbers, dots or dashes.', true); return false; }
+        const pin = $('#pf-pin', root).value; if (pin.length !== 4) { toast('Enter your current PIN to change your username.', true); return false; }
+        await Outbox.flush();
+        const res = await run('updateProfile', { profile: Object.assign({}, profile, { username: nu, pin }) });
+        if (photo) keepPhotoFor(res, photo);
+        S.data.me = Object.assign({}, me(), res); upsert('users', Object.assign({}, userById(res.id) || {}, res));
+        Session.set(Session.token, S.data.me); rememberMe(); render();
+        toast('Saved. Sign in as @' + nu + ' from now on');
+        return;
+      }
       op({ action: 'updateProfile', profile }); render(); rememberMe(); toast('Profile saved');
     } });
 }
