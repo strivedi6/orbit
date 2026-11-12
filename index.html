@@ -61,6 +61,9 @@
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
+:root{--vb:0px}
+/* Home Screen app on iPhone: the layout viewport stops short of the home bar, so pin everything to the full screen height. */
+@media (display-mode: standalone){ html,body{height:100vh;height:100lvh} :root{--vb:calc(100% - 100lvh)} }
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:17px;line-height:1.29;letter-spacing:-.43px;
   -webkit-font-smoothing:antialiased;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
@@ -218,11 +221,11 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 .me-btn small{display:block;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
 
 /* ---------- floating tab bar (phones) ---------- */
-.tab-fade{position:fixed;z-index:29;left:0;right:0;bottom:0;height:calc(var(--tab-h) + var(--safe-b) + 46px);pointer-events:none;
+.tab-fade{position:fixed;z-index:29;left:0;right:0;bottom:var(--vb);height:calc(var(--tab-h) + var(--safe-b) + 46px);pointer-events:none;
   background:linear-gradient(to top,color-mix(in srgb,var(--bg) 80%,transparent) 35%,color-mix(in srgb,var(--bg) 0%,transparent));
   -webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);
   -webkit-mask-image:linear-gradient(to top,#000 55%,transparent);mask-image:linear-gradient(to top,#000 55%,transparent);transition:opacity .4s}
-.tabdock{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + 8px);width:min(100% - 32px,560px);display:flex;align-items:center;gap:12px;
+.tabdock{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + 8px + var(--vb));width:min(100% - 32px,560px);display:flex;align-items:center;gap:12px;
   pointer-events:none;transition:transform .5s var(--ease),opacity .35s}
 .tabbar{pointer-events:auto;flex:1;height:var(--tab-h);border-radius:999px;padding:4px;display:grid;grid-template-columns:repeat(4,1fr);position:relative}
 .tab{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10px;font-weight:600;letter-spacing:.1px;color:var(--text);border-radius:999px}
@@ -397,7 +400,7 @@ button.person:active{background:var(--fill-4)}
 /* ---------- sheets, alerts, menus, toast ---------- */
 .sheet-back{position:fixed;inset:0;z-index:60;background:var(--dim);opacity:0;transition:opacity .35s}
 .sheet-back.in{opacity:1}
-.sheet{position:fixed;z-index:61;left:0;right:0;bottom:0;max-width:720px;margin:0 auto;padding-bottom:var(--safe-b);max-height:calc(100% - var(--safe-t) - 40px);display:flex;flex-direction:column;
+.sheet{position:fixed;z-index:61;left:0;right:0;bottom:var(--vb);max-width:720px;margin:0 auto;padding-bottom:var(--safe-b);max-height:calc(100% - var(--safe-t) - 40px);display:flex;flex-direction:column;
   background:var(--bg);border-radius:38px 38px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(110%);transition:transform .5s var(--ease);overflow:hidden}
 .sheet.in{transform:none}
 .sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--fill);margin:6px auto 0;flex:none}
@@ -568,7 +571,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 @keyframes tide{0%{transform:translateX(-4%)}100%{transform:translateX(4%)}}
 
 /* ---------- sign-in ---------- */
-.lock{position:fixed;inset:0;z-index:100;display:flex;overflow:hidden;background:var(--bg);touch-action:manipulation}
+.lock{position:fixed;inset:0;bottom:var(--vb);z-index:100;display:flex;overflow:hidden;background:var(--bg);touch-action:manipulation}
 .lock-bg{position:absolute;inset:-20% -20% calc(-20% - 200px);pointer-events:none;filter:blur(60px);opacity:.9}
 .lock-bg i{position:absolute;border-radius:50%;display:block}
 .lock-bg i:nth-child(1){width:70vmax;height:70vmax;left:5%;top:-10%;background:color-mix(in srgb,var(--accent) 38%,transparent);animation:drift1 18s ease-in-out infinite alternate}
@@ -639,7 +642,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .scope-pill{display:inline-flex!important}
   .desk-only{display:none!important}
   .smart{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .insp{left:0;right:0;bottom:0;top:calc(var(--safe-t) + 10px);border-radius:38px 38px 0 0;background:var(--bg);box-shadow:0 -10px 40px rgba(0,0,0,.2);
+  .insp{left:0;right:0;bottom:var(--vb);top:calc(var(--safe-t) + 10px);border-radius:38px 38px 0 0;background:var(--bg);box-shadow:0 -10px 40px rgba(0,0,0,.2);
     transform:translateY(105%);transition:transform .5s var(--ease)}
   .insp-bar{position:relative;padding-top:18px}
   .grab-h{display:block;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--fill)}
