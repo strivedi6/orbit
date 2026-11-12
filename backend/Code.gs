@@ -153,11 +153,11 @@ var TABLES = {
   users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams','access','members','managers'],
-  tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId'],
+  tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId','repeatOn','subStages'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -178,14 +178,37 @@ function stepDate(d, rep) {
   else if (rep === 'yearly') r = addMonths(d, 12);
   return r;
 }
-function nextDue(due, rep, today) {
+/* "on" refines the frequency: weekdays for weekly ("1,3" = Mon, Wed), a day of the month for monthly/quarterly ("15" or "last"). */
+function monthDay(y, m, on) { var last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, on === 'last' ? last : Math.min(parseInt(on, 10), last)); }
+function weekStart(d) { var r = new Date(d.getTime()); r.setDate(r.getDate() - ((r.getDay() + 6) % 7)); r.setHours(0, 0, 0, 0); return r.getTime(); }
+function stepOn(d, rep, on) {
+  if ((rep === 'weekly' || rep === 'biweekly') && on) {
+    var days = String(on).split(',').map(Number).filter(function (x) { return x >= 0 && x <= 6; });
+    if (days.length) {
+      var r = new Date(d.getTime());
+      for (var i = 0; i < 7; i++) { r.setDate(r.getDate() + 1); if (days.indexOf(r.getDay()) >= 0) break; }
+      if (rep === 'biweekly' && weekStart(r) !== weekStart(d)) r.setDate(r.getDate() + 7);
+      return r;
+    }
+  }
+  if ((rep === 'monthly' || rep === 'quarterly') && on && (on === 'last' || /^\d{1,2}$/.test(String(on)))) {
+    var step = rep === 'monthly' ? 1 : 3;
+    var same = monthDay(d.getFullYear(), d.getMonth(), on);
+    if (same > d) return same;
+    return monthDay(d.getFullYear(), d.getMonth() + step, on);
+  }
+  return stepDate(d, rep);
+}
+function nextDue(due, rep, today, on) {
   var t = today ? new Date(today + 'T00:00:00') : new Date(); t.setHours(0, 0, 0, 0);
   var d = due ? new Date(due + 'T00:00:00') : new Date(t.getTime());
-  var n = stepDate(d, rep), guard = 0;
-  while (n < t && guard++ < 1000) n = stepDate(n, rep);
-  if (n <= t && !due) n = stepDate(t, rep);
+  var n = stepOn(d, rep, on), guard = 0;
+  while (n < t && guard++ < 1000) n = stepOn(n, rep, on);
+  if (n <= t && !due) n = stepOn(t, rep, on);
   return ymd(n);
 }
+/* First date on or after today for a new repeating task. */
+function firstDue(rep, today, on) { var t = new Date(today + 'T00:00:00'); t.setDate(t.getDate() - 1); return nextDue(ymd(t), rep, today, on); }
 function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
@@ -460,7 +483,7 @@ var ACTIONS = {
     if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
     if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
     var team = project ? projectPeople(DB, project) : DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).indexOf(teamId) >= 0; }).map(function (x) { return x.id; });
-    var stageIds = stagesOf(project).map(function (s) { return s.id; });
+    var stageIds = (parent ? stagesOf({ stages: parent.subStages }) : stagesOf(project)).map(function (s) { return s.id; });
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
     var f = {};
@@ -470,6 +493,7 @@ var ACTIONS = {
     if (t.priority !== undefined) f.priority = PRIORITIES.indexOf(t.priority) >= 0 ? t.priority : 'none';
     if (t.due !== undefined) f.due = str(t.due, 10);
     if (t.repeat !== undefined) f.repeat = REPEATS.indexOf(t.repeat) >= 0 ? t.repeat : '';
+    if (t.repeatOn !== undefined) f.repeatOn = /^(last|[0-9,]{1,20})$/.test(String(t.repeatOn)) ? String(t.repeatOn) : '';
     if (t.order !== undefined) f.order = Number(t.order) || 0;
     if (t.projectId !== undefined) f.projectId = projectId || '';
     if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
@@ -488,11 +512,11 @@ var ACTIONS = {
           var nid = cleanId(t.spawnId, 't');
           if (!DB.get('tasks', nid)) {
             var nx = { id: nid, teamId: after.teamId, projectId: after.projectId || '', parentId: after.parentId || '', title: after.title, notes: after.notes || '',
-              status: stageIds[0], priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today),
+              status: stageIds[0], priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today, after.repeatOn), repeatOn: after.repeatOn || '', subStages: after.subStages || [],
               createdBy: after.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '', order: Date.now(), attachments: [], repeat: after.repeat, nextId: '' };
             DB.insert('tasks', nx);
             DB.all('tasks').filter(function (x) { return x.parentId === after.id; }).forEach(function (s, i) {
-              DB.insert('tasks', { id: uid('t'), teamId: s.teamId, projectId: s.projectId || '', parentId: nid, title: s.title, notes: s.notes || '', status: stageIds[0],
+              DB.insert('tasks', { id: uid('t'), teamId: s.teamId, projectId: s.projectId || '', parentId: nid, title: s.title, notes: s.notes || '', status: stagesOf({ stages: after.subStages })[0].id,
                 priority: s.priority || 'none', assignees: s.assignees || [], due: '', createdBy: s.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '',
                 order: Date.now() + i, attachments: [], repeat: '', nextId: '' });
             });
@@ -690,9 +714,14 @@ var ACTIONS = {
 
   /* Main admin or the project team's department head edits the stages (columns) of a project. Done always stays last. */
   saveStages: function (DB, r) {
-    var u = auth(DB, r.token), p = DB.get('projects', r.projectId);
-    if (!p || !canSeeProject(u, p)) fail('That project no longer exists.');
-    if (!canManageProject(u, p)) fail('Only this project’s managers, a department head or the main admin can change stages.');
+    var u = auth(DB, r.token), task = r.taskId ? DB.get('tasks', r.taskId) : null;
+    if (r.taskId && (!task || !canSeeTask(DB, u, task))) fail('That task no longer exists.');
+    var p = task ? (task.projectId ? DB.get('projects', task.projectId) : null) : DB.get('projects', r.projectId);
+    if (!task && (!p || !canSeeProject(u, p))) fail('That project no longer exists.');
+    if (task) {
+      if (!(task.createdBy === u.id || listOf(task.assignees).indexOf(u.id) >= 0 || (p ? canManageProject(u, p) : canManageTeam(u, task.teamId))))
+        fail('Only the person who created this task, the people assigned to it or a manager can change its subtask stages.');
+    } else if (!canManageProject(u, p)) fail('Only this project’s managers, a department head or the main admin can change stages.');
     var out = [], seen = {}, done = null;
     (Array.isArray(r.stages) ? r.stages : []).slice(0, 12).forEach(function (s) {
       var name = str(s && s.name, 30); if (!name) return;
@@ -704,7 +733,13 @@ var ACTIONS = {
     if (!out.length) fail('Keep at least one stage before Done.');
     out.push(done || { id: 'done', name: 'Done', color: 'green' });
     var ids = out.map(function (s) { return s.id; });
-    DB.all('tasks').filter(function (t) { return t.projectId === p.id && ids.indexOf(t.status) < 0; })
+    if (task) {
+      DB.all('tasks').filter(function (t) { return t.parentId === task.id && ids.indexOf(t.status) < 0; })
+        .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
+      DB.update('tasks', task.id, { subStages: out, updatedAt: nowISO() });
+      return DB.get('tasks', task.id);
+    }
+    DB.all('tasks').filter(function (t) { return t.projectId === p.id && !t.parentId && ids.indexOf(t.status) < 0; })
       .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
     DB.update('projects', p.id, { stages: out, updatedAt: nowISO() });
     return DB.get('projects', p.id);
