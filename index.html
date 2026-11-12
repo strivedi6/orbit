@@ -824,6 +824,10 @@ function nextDue(due, rep, today, on) {
 /* First date on or after today for a new repeating task. */
 function firstDue(rep, today, on) { var t = new Date(today + 'T00:00:00'); t.setDate(t.getDate() - 1); return nextDue(ymd(t), rep, today, on); }
 function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
+/* A stage list either ends in a Done column (completing moves the task there), or has none: then the stages are
+   groups such as outlets, and completing only ticks the task, which stays where it is. */
+function hasDoneStage(list) { return (list || []).some(function (s) { return s.id === 'done'; }); }
+function taskDoneIn(t, list) { return hasDoneStage(list) ? t.status === 'done' : !!t.completedAt; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
 var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
@@ -1097,7 +1101,8 @@ var ACTIONS = {
     if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
     if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
     var team = project ? projectPeople(DB, project) : DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).indexOf(teamId) >= 0; }).map(function (x) { return x.id; });
-    var stageIds = (parent ? stagesOf({ stages: parent.subStages }) : stagesOf(project)).map(function (s) { return s.id; });
+    var stageList = parent ? stagesOf({ stages: parent.subStages }) : stagesOf(project);
+    var stageIds = stageList.map(function (s) { return s.id; }), doneCol = hasDoneStage(stageList);
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
     var f = {};
@@ -1112,7 +1117,9 @@ var ACTIONS = {
     if (t.projectId !== undefined) f.projectId = projectId || '';
     if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
     f.teamId = teamId; f.updatedAt = nowISO();
-    if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : '';
+    if (doneCol) { if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : ''; }
+    else if (t.done !== undefined) f.completedAt = t.done ? (base.completedAt || nowISO()) : '';
+    var wasDone = existing ? taskDoneIn(existing, stageList) : false;
 
     if (existing) {
       if (f.title === '') fail('A task needs a title.');
@@ -1120,13 +1127,13 @@ var ACTIONS = {
       var after = DB.get('tasks', existing.id);
       var added = (f.assignees || []).filter(function (id) { return (existing.assignees || []).indexOf(id) < 0; });
       if (added.length) log(DB, u, teamId, 'assign', existing.id, 'assigned “' + after.title + '”', added);
-      if (f.status && f.status !== existing.status && f.status === 'done') {
+      if (!wasDone && taskDoneIn(after, stageList)) {
         log(DB, u, teamId, 'complete', existing.id, 'completed “' + after.title + '”', [after.createdBy].concat(after.assignees || []));
         if (after.repeat && !after.nextId) {
           var nid = cleanId(t.spawnId, 't');
           if (!DB.get('tasks', nid)) {
             var nx = { id: nid, teamId: after.teamId, projectId: after.projectId || '', parentId: after.parentId || '', title: after.title, notes: after.notes || '',
-              status: stageIds[0], priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today, after.repeatOn), repeatOn: after.repeatOn || '', subStages: after.subStages || [],
+              status: doneCol ? stageIds[0] : after.status, priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today, after.repeatOn), repeatOn: after.repeatOn || '', subStages: after.subStages || [],
               createdBy: after.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '', order: Date.now(), attachments: [], repeat: after.repeat, nextId: '' };
             DB.insert('tasks', nx);
             DB.all('tasks').filter(function (x) { return x.parentId === after.id; }).forEach(function (s, i) {
@@ -1345,8 +1352,17 @@ var ACTIONS = {
       if (id === 'done') done = st; else out.push(st);
     });
     if (!out.length) fail('Keep at least one stage before Done.');
-    out.push(done || { id: 'done', name: 'Done', color: 'green' });
+    if (!r.noDone) out.push(done || { id: 'done', name: 'Done', color: 'green' });
     var ids = out.map(function (s) { return s.id; });
+    var oldList = task ? stagesOf({ stages: task.subStages }) : stagesOf(p);
+    var inScope = function (t) { return task ? t.parentId === task.id : t.projectId === p.id && !t.parentId; };
+    var keepAs = r.noDone && ids.indexOf(String(r.doneAs || '')) >= 0 ? String(r.doneAs) : '';
+    if (r.noDone && hasDoneStage(oldList))
+      DB.all('tasks').filter(function (t) { return inScope(t) && t.status === 'done'; })   // stay completed, just leave the old Done column
+        .forEach(function (t) { DB.update('tasks', t.id, { status: keepAs || ids[0], completedAt: t.completedAt || nowISO(), updatedAt: nowISO() }); });
+    if (!r.noDone && !hasDoneStage(oldList))
+      DB.all('tasks').filter(function (t) { return inScope(t) && t.completedAt && t.status !== 'done'; })
+        .forEach(function (t) { DB.update('tasks', t.id, { status: 'done', updatedAt: nowISO() }); });
     if (task) {
       DB.all('tasks').filter(function (t) { return t.parentId === task.id && ids.indexOf(t.status) < 0; })
         .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
@@ -1768,7 +1784,8 @@ function repeatLabel(r, on) {
 const projects = () => D().projects.filter(p => projInScope(p) && !p.archived).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 const topTasks = pid => D().tasks.filter(t => t.projectId === pid && !t.parentId);
 const subtasks = id => D().tasks.filter(t => t.parentId === id).sort((a, b) => a.order - b.order);
-const isDone = t => t.status === 'done';
+const isDone = t => taskDoneIn(t, stagesForTask(t));
+const doneColumn = t => hasDoneStage(stagesForTask(t));
 const myTasks = () => D().tasks.filter(t => (t.assignees || []).includes(me().id) && taskInScope(t));
 const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && userInScope(u));
 const unread = () => D().activity.filter(a => (a.targets || []).includes(me().id) && a.createdAt > (S.seenAt || '')).length;
@@ -1873,6 +1890,15 @@ function keepPhoto(u) {
 }
 const op = o => Outbox.push(o);
 
+/* Mirror of the server's saveStages: switching the Done column off keeps finished tasks ticked in a stage; switching it on moves them into Done. */
+function restage(tasks, list, hadDone, o) {
+  const ids = list.map(s => s.id), now = new Date().toISOString(), col = hasDoneStage(list);
+  tasks.forEach(t => {
+    if (!col && hadDone && t.status === 'done') { t.status = ids.includes(o.doneAs) ? o.doneAs : ids[0]; t.completedAt = t.completedAt || now; }
+    if (col && !hadDone && t.completedAt) t.status = 'done';
+    if (!ids.includes(t.status)) t.status = ids[0];
+  });
+}
 /* Show a change straight away, before the server confirms it. */
 function applyLocal(o) {
   if (!S.data) return;
@@ -1881,14 +1907,16 @@ function applyLocal(o) {
     case 'saveTask': {
       const p = o.task, t = taskById(p.id);
       if (t) {
-        if (p.status !== undefined && p.status !== t.status) t.completedAt = p.status === 'done' ? now : '';
-        if (p.spawnId && p.status === 'done' && t.repeat && !t.nextId && !taskById(p.spawnId)) {
+        const col = doneColumn(t), was = isDone(t);
+        if (col && p.status !== undefined && p.status !== t.status) t.completedAt = p.status === 'done' ? now : '';
+        if (!col && p.done !== undefined) t.completedAt = p.done ? (t.completedAt || now) : '';
+        if (p.spawnId && !was && (col ? p.status === 'done' : p.done) && t.repeat && !t.nextId && !taskById(p.spawnId)) {
           D().tasks.push({ id: p.spawnId, teamId: t.teamId, projectId: t.projectId || '', parentId: t.parentId || '', title: t.title, notes: t.notes || '',
-            status: stagesForTask(t)[0].id, priority: t.priority || 'none', assignees: (t.assignees || []).slice(), due: nextDue(t.due, t.repeat, p.today, t.repeatOn), repeatOn: t.repeatOn || '', subStages: t.subStages || [],
+            status: col ? stagesForTask(t)[0].id : (p.status || t.status), priority: t.priority || 'none', assignees: (t.assignees || []).slice(), due: nextDue(t.due, t.repeat, p.today, t.repeatOn), repeatOn: t.repeatOn || '', subStages: t.subStages || [],
             createdBy: t.createdBy, createdAt: now, updatedAt: now, completedAt: '', order: Date.now(), attachments: [], repeat: t.repeat, nextId: '' });
           t.nextId = p.spawnId;
         }
-        const clean = Object.assign({}, p); delete clean.spawnId; delete clean.today;
+        const clean = Object.assign({}, p); delete clean.spawnId; delete clean.today; delete clean.done;
         Object.assign(t, clean, { updatedAt: now });
       } else D().tasks.push(Object.assign({ parentId: '', projectId: '', notes: '', status: 'todo', priority: 'none', assignees: [], due: '', order: Date.now(),
         attachments: [], completedAt: '', createdBy: me().id, createdAt: now, updatedAt: now }, p));
@@ -1939,13 +1967,15 @@ function applyLocal(o) {
     case 'saveStages': {
       if (o.taskId) {
         const tk = taskById(o.taskId); if (!tk) break;
-        tk.subStages = o.stages.map(s => Object.assign({}, s)); const ids = tk.subStages.map(s => s.id);
-        D().tasks.forEach(x => { if (x.parentId === tk.id && !ids.includes(x.status)) x.status = ids[0]; });
+        const was = hasDoneStage(stagesOf({ stages: tk.subStages }));
+        tk.subStages = o.stages.map(s => Object.assign({}, s));
+        restage(D().tasks.filter(x => x.parentId === tk.id), tk.subStages, was, o);
         break;
       }
       const p = projById(o.projectId); if (!p) break;
-      p.stages = o.stages.map(s => Object.assign({}, s)); const ids = p.stages.map(s => s.id);
-      D().tasks.forEach(t => { if (t.projectId === p.id && !t.parentId && !ids.includes(t.status)) t.status = ids[0]; });
+      const was = hasDoneStage(stagesOf(p));
+      p.stages = o.stages.map(s => Object.assign({}, s));
+      restage(D().tasks.filter(t => t.projectId === p.id && !t.parentId), p.stages, was, o);
       break;
     }
   }
@@ -1990,7 +2020,7 @@ async function run(action, payload, okMsg) {
 }
 function saveTask(patch, msg) {
   const t = taskById(patch.id);
-  if (t && patch.status === 'done' && t.status !== 'done' && t.repeat && !t.nextId) {
+  if (t && !isDone(t) && (doneColumn(t) ? patch.status === 'done' : patch.done) && t.repeat && !t.nextId) {
     patch.spawnId = uidC('t'); patch.today = todayStr();
     const nd = nextDue(t.due, t.repeat, todayStr(), t.repeatOn);
     msg = 'Done. Next one is due ' + fmtDay(nd);
@@ -2843,7 +2873,7 @@ const ACT = {
     const nowDone = !isDone(t);
     Motion.haptic();
     el.classList.add('pop'); el.classList.toggle('on', nowDone);
-    setTimeout(() => saveTask({ id: t.id, status: nowDone ? 'done' : stagesForTask(t)[0].id }), 220);
+    setTimeout(() => saveTask(doneColumn(t) ? { id: t.id, status: nowDone ? 'done' : stagesForTask(t)[0].id } : { id: t.id, done: nowDone }), 220);
   },
   repeatMenu(el) {
     const t = taskById(el.dataset.id); if (!t) return;
@@ -3189,15 +3219,17 @@ function readShareRows(root, k) { return $$('[data-share]', root).filter(x => x.
 function stagesDialog(p, task) {
   if (!p && !task) return;
   let list = (task ? stagesOf({ stages: task.subStages }) : stageList(p)).map(s => Object.assign({}, s));
+  let useDone = hasDoneStage(list), doneAs = '';
+  const newId = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const counts = id => D().tasks.filter(t => (task ? t.parentId === task.id : t.projectId === p.id && !t.parentId) && t.status === id).length;
   const row = (s, i) => {
-    const done = s.id === 'done', last = list.length - 2;
+    const done = s.id === 'done', last = list.length - (useDone ? 2 : 1);
     return `<div class="li stg" style="--inset:58px"><button class="stg-c" data-sc="${i}" style="background:${cvar(s.color)}" aria-label="Change colour of ${esc(s.name)}"></button>
       <input class="stg-n" data-sn="${i}" value="${esc(s.name)}" maxlength="30" aria-label="Stage name">
       <span class="sub tnum" style="font-size:13px">${counts(s.id) || ''}</span>
       ${done ? '<span class="sub" style="font-size:13px;width:110px;text-align:right">Always last</span>' : `<button class="circle sm" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${ic('chevU', 's')}</button>
       <button class="circle sm" data-dn="${i}" ${i >= last ? 'disabled' : ''} aria-label="Move down">${ic('chevD', 's')}</button>
-      <button class="circle sm" data-del="${i}" ${list.length <= 2 ? 'disabled' : ''} aria-label="Delete ${esc(s.name)}" style="color:var(--red)">${ic('trash', 's')}</button>`}</div>`;
+      <button class="circle sm" data-del="${i}" ${list.length <= (useDone ? 2 : 1) ? 'disabled' : ''} aria-label="Delete ${esc(s.name)}" style="color:var(--red)">${ic('trash', 's')}</button>`}</div>`;
   };
   const draw = root => {
     $('#stg-list', root).innerHTML = list.map(row).join('') + `<div class="addrow" style="--inset:58px">${ic('plus')}<input id="stg-add" placeholder="Add a stage, e.g. Waiting for Approval" maxlength="30" aria-label="New stage name"></div>`;
@@ -3211,19 +3243,33 @@ function stagesDialog(p, task) {
       list.splice(i, 1); draw(root);
     });
     const add = $('#stg-add', root);
+    const sw = $('#stg-done', root); sw.checked = useDone;
+    $('#stg-done-foot', root).textContent = useDone ? 'Completing a task moves it into the last column, ' + (list.find(s => s.id === 'done') || {}).name + '.' : 'Completing a task ticks it and keeps it in its own stage. Use this when stages are outlets, places or groups rather than steps.';
+    sw.onchange = () => {
+      Motion.haptic(); useDone = sw.checked;
+      if (!useDone) {
+        const d = list.find(s => s.id === 'done');
+        // a Done column renamed into something real (an outlet, say) stays as an ordinary stage
+        if (d && !/^(done|completed?|finished|closed)$/i.test(d.name.trim())) { d.id = doneAs = newId(); } else { list = list.filter(s => s.id !== 'done'); doneAs = ''; }
+      } else { if (!hasDoneStage(list)) list.push({ id: 'done', name: 'Done', color: 'green' }); doneAs = ''; }
+      draw(root);
+    };
     add.onkeydown = e => { if (e.key !== 'Enter' || !add.value.trim()) return; e.preventDefault();
-      list.splice(list.length - 1, 0, { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: add.value.trim(), color: PCOLORS[(list.length * 3) % PCOLORS.length] });
+      list.splice(useDone ? list.length - 1 : list.length, 0, { id: newId(), name: add.value.trim(), color: PCOLORS[(list.length * 3) % PCOLORS.length] });
       draw(root); setTimeout(() => $('#stg-add', root).focus(), 0); };
   };
   openDialog({ title: task ? 'Subtask Stages' : 'Stages', ok: 'Save', body: `<p class="lt-sub" style="margin:4px 4px 12px">${esc(task ? 'Subtasks of “' + task.title + '”' : p.name)} · tap a dot to change its colour.</p><div class="menu" id="stg-list"></div>
+    <div class="menu" style="margin-top:18px"><label class="li" style="--inset:16px"><span class="lbl">Done column</span><span class="switch"><input type="checkbox" id="stg-done" aria-label="Move completed tasks into a Done column"><span></span></span></label></div>
+    <p class="section-foot" id="stg-done-foot"></p>
     <p class="section-foot">${task ? 'These stages apply only to this task’s subtasks. ' : ''}Every ${task ? 'task' : 'project'} starts with To Do, In Progress, In Review, Follow Up and Done.</p>`,
     onOpen: draw,
     onOk: root => {
       const pending = $('#stg-add', root).value.trim();
-      if (pending) list.splice(list.length - 1, 0, { id: 's' + Date.now().toString(36), name: pending, color: 'teal' });
+      if (pending) list.splice(useDone ? list.length - 1 : list.length, 0, { id: newId(), name: pending, color: 'teal' });
       list = list.map(s => Object.assign({}, s, { name: s.name.trim() })).filter(s => s.name);
-      if (list.filter(s => s.id !== 'done').length < 1) { toast('Keep at least one stage before Done.', true); return false; }
-      if (task) op({ action: 'saveStages', taskId: task.id, stages: list }); else op({ action: 'saveStages', projectId: p.id, stages: list });
+      if (list.filter(s => s.id !== 'done').length < 1) { toast(useDone ? 'Keep at least one stage before Done.' : 'Add at least one stage.', true); return false; }
+      const extra = useDone ? {} : { noDone: true, doneAs };
+      if (task) op(Object.assign({ action: 'saveStages', taskId: task.id, stages: list }, extra)); else op(Object.assign({ action: 'saveStages', projectId: p.id, stages: list }, extra));
       render(); toast('Stages saved');
     } });
 }

@@ -210,6 +210,10 @@ function nextDue(due, rep, today, on) {
 /* First date on or after today for a new repeating task. */
 function firstDue(rep, today, on) { var t = new Date(today + 'T00:00:00'); t.setDate(t.getDate() - 1); return nextDue(ymd(t), rep, today, on); }
 function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
+/* A stage list either ends in a Done column (completing moves the task there), or has none: then the stages are
+   groups such as outlets, and completing only ticks the task, which stays where it is. */
+function hasDoneStage(list) { return (list || []).some(function (s) { return s.id === 'done'; }); }
+function taskDoneIn(t, list) { return hasDoneStage(list) ? t.status === 'done' : !!t.completedAt; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
 var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
@@ -483,7 +487,8 @@ var ACTIONS = {
     if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
     if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
     var team = project ? projectPeople(DB, project) : DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).indexOf(teamId) >= 0; }).map(function (x) { return x.id; });
-    var stageIds = (parent ? stagesOf({ stages: parent.subStages }) : stagesOf(project)).map(function (s) { return s.id; });
+    var stageList = parent ? stagesOf({ stages: parent.subStages }) : stagesOf(project);
+    var stageIds = stageList.map(function (s) { return s.id; }), doneCol = hasDoneStage(stageList);
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
     var f = {};
@@ -498,7 +503,9 @@ var ACTIONS = {
     if (t.projectId !== undefined) f.projectId = projectId || '';
     if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
     f.teamId = teamId; f.updatedAt = nowISO();
-    if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : '';
+    if (doneCol) { if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : ''; }
+    else if (t.done !== undefined) f.completedAt = t.done ? (base.completedAt || nowISO()) : '';
+    var wasDone = existing ? taskDoneIn(existing, stageList) : false;
 
     if (existing) {
       if (f.title === '') fail('A task needs a title.');
@@ -506,13 +513,13 @@ var ACTIONS = {
       var after = DB.get('tasks', existing.id);
       var added = (f.assignees || []).filter(function (id) { return (existing.assignees || []).indexOf(id) < 0; });
       if (added.length) log(DB, u, teamId, 'assign', existing.id, 'assigned “' + after.title + '”', added);
-      if (f.status && f.status !== existing.status && f.status === 'done') {
+      if (!wasDone && taskDoneIn(after, stageList)) {
         log(DB, u, teamId, 'complete', existing.id, 'completed “' + after.title + '”', [after.createdBy].concat(after.assignees || []));
         if (after.repeat && !after.nextId) {
           var nid = cleanId(t.spawnId, 't');
           if (!DB.get('tasks', nid)) {
             var nx = { id: nid, teamId: after.teamId, projectId: after.projectId || '', parentId: after.parentId || '', title: after.title, notes: after.notes || '',
-              status: stageIds[0], priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today, after.repeatOn), repeatOn: after.repeatOn || '', subStages: after.subStages || [],
+              status: doneCol ? stageIds[0] : after.status, priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today, after.repeatOn), repeatOn: after.repeatOn || '', subStages: after.subStages || [],
               createdBy: after.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '', order: Date.now(), attachments: [], repeat: after.repeat, nextId: '' };
             DB.insert('tasks', nx);
             DB.all('tasks').filter(function (x) { return x.parentId === after.id; }).forEach(function (s, i) {
@@ -731,8 +738,17 @@ var ACTIONS = {
       if (id === 'done') done = st; else out.push(st);
     });
     if (!out.length) fail('Keep at least one stage before Done.');
-    out.push(done || { id: 'done', name: 'Done', color: 'green' });
+    if (!r.noDone) out.push(done || { id: 'done', name: 'Done', color: 'green' });
     var ids = out.map(function (s) { return s.id; });
+    var oldList = task ? stagesOf({ stages: task.subStages }) : stagesOf(p);
+    var inScope = function (t) { return task ? t.parentId === task.id : t.projectId === p.id && !t.parentId; };
+    var keepAs = r.noDone && ids.indexOf(String(r.doneAs || '')) >= 0 ? String(r.doneAs) : '';
+    if (r.noDone && hasDoneStage(oldList))
+      DB.all('tasks').filter(function (t) { return inScope(t) && t.status === 'done'; })   // stay completed, just leave the old Done column
+        .forEach(function (t) { DB.update('tasks', t.id, { status: keepAs || ids[0], completedAt: t.completedAt || nowISO(), updatedAt: nowISO() }); });
+    if (!r.noDone && !hasDoneStage(oldList))
+      DB.all('tasks').filter(function (t) { return inScope(t) && t.completedAt && t.status !== 'done'; })
+        .forEach(function (t) { DB.update('tasks', t.id, { status: 'done', updatedAt: nowISO() }); });
     if (task) {
       DB.all('tasks').filter(function (t) { return t.parentId === task.id && ids.indexOf(t.status) < 0; })
         .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
