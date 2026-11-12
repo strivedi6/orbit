@@ -150,16 +150,20 @@ var SheetDB = (function () {
 var TABLES = {
   properties: ['id','code','name','createdAt','color','logo'],
   teams:      ['id','propertyCode','name','color','createdAt'],
-  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV'],
+  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
-  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
+  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, shareTeams: 1, mentions: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
-var STATUSES = ['todo','doing','review','done'];
+var DEFAULT_STAGES = [
+  { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
+  { id: 'review', name: 'In Review', color: 'purple' }, { id: 'followup', name: 'Follow Up', color: 'orange' },
+  { id: 'done', name: 'Done', color: 'green' }];
+function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
 var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
@@ -227,11 +231,25 @@ function makeToken() { return 't' + sha256(uid() + Math.random() + Date.now()).s
 function publicUser(u) {
   return { id: u.id, propertyCode: u.propertyCode, teamId: u.teamId, username: u.username, name: u.name,
     jobTitle: u.jobTitle, role: u.role, status: u.status, avatarColor: u.avatarColor, createdAt: u.createdAt,
-    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', photoV: u.photo ? String(u.photoV || '1') : '' };
+    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', teamIds: Array.isArray(u.teamIds) ? u.teamIds : [], photoV: u.photo ? String(u.photoV || '1') : '' };
 }
 function isAdmin(u) { return u.role === 'admin'; }
-function canSeeTeam(u, teamId) { return isAdmin(u) || u.teamId === teamId; }
-function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && u.teamId === teamId); }
+/* A person's teams: their home team plus any extra teams (cluster colleagues working across properties). */
+function userTeams(u) {
+  var l = [u.teamId];
+  (Array.isArray(u.teamIds) ? u.teamIds : []).forEach(function (t) { if (t && l.indexOf(t) < 0) l.push(t); });
+  return l;
+}
+function canSeeTeam(u, teamId) { return isAdmin(u) || userTeams(u).indexOf(teamId) >= 0; }
+function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && userTeams(u).indexOf(teamId) >= 0); }
+/* A project belongs to one team and can be shared with teams at other properties. */
+function projTeams(p) { return [p.teamId].concat(Array.isArray(p.shareTeams) ? p.shareTeams : []); }
+function canSeeProject(u, p) { if (isAdmin(u)) return true; var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; }); }
+function canSeeTask(DB, u, t) {
+  if (canSeeTeam(u, t.teamId)) return true;
+  var p = t.projectId ? DB.get('projects', t.projectId) : null;
+  return !!(p && canSeeProject(u, p));
+}
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
 function auth(DB, token) {
@@ -252,7 +270,7 @@ function headsOf(DB, teamId) {
 }
 function taskOrFail(DB, u, id) {
   var t = DB.get('tasks', id);
-  if (!t || !canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
+  if (!t || !canSeeTask(DB, u, t)) fail('That task no longer exists.');
   return t;
 }
 
@@ -315,25 +333,29 @@ var ACTIONS = {
 
   /* ---------- everything the signed-in person can see ---------- */
   sync: function (DB, r) {
-    var u = auth(DB, r.token);
-    var admin = isAdmin(u);
-    var teams = DB.all('teams').filter(function (t) { return admin || t.id === u.teamId; });
-    var teamIds = {}; teams.forEach(function (t) { teamIds[t.id] = 1; });
-    var inScope = function (x) { return !!teamIds[x.teamId]; };
+    var u = auth(DB, r.token), admin = isAdmin(u), mine = userTeams(u);
+    var projects = DB.all('projects').filter(function (p) { return canSeeProject(u, p); });
+    var pIds = {}, tset = {};
+    mine.forEach(function (t) { tset[t] = 1; });
+    projects.forEach(function (p) { pIds[p.id] = 1; projTeams(p).forEach(function (t) { tset[t] = 1; }); });
+    var tasks = DB.all('tasks').filter(function (t) { return admin || mine.indexOf(t.teamId) >= 0 || (t.projectId && pIds[t.projectId]); });
+    var tIds = {}; tasks.forEach(function (t) { tIds[t.id] = 1; });
     var users = DB.all('users').filter(function (x) {
       if (admin) return true;
-      if (x.teamId !== u.teamId) return false;
-      return x.status === 'active' || u.role === 'head';
+      var xt = userTeams(x);
+      if (!xt.some(function (t) { return tset[t]; })) return false;
+      if (x.status === 'active') return true;
+      return u.role === 'head' && xt.some(function (t) { return mine.indexOf(t) >= 0; });
     }).map(publicUser);
-    var activity = DB.all('activity').filter(inScope)
-      .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
+    var activity = DB.all('activity').filter(function (a) {
+      return admin || mine.indexOf(a.teamId) >= 0 || tIds[a.refId] || (a.targets || []).indexOf(u.id) >= 0;
+    }).sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
     return {
       me: publicUser(u),
-      properties: DB.all('properties').filter(function (p) { return admin || p.code === u.propertyCode; }).map(publicProperty),
-      teams: teams, users: users,
-      projects: DB.all('projects').filter(inScope),
-      tasks: DB.all('tasks').filter(inScope),
-      comments: DB.all('comments').filter(inScope),
+      properties: DB.all('properties').map(publicProperty),
+      teams: DB.all('teams'), users: users,
+      projects: projects, tasks: tasks,
+      comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
       activity: activity,
       serverTime: nowISO()
     };
@@ -346,15 +368,23 @@ var ACTIONS = {
       ownerId: str(p.ownerId), status: PROJECT_STATUSES.indexOf(p.status) >= 0 ? p.status : 'on_track', due: str(p.due, 10),
       archived: truthy(p.archived), updatedAt: nowISO() };
     if (!fields.name) fail('Give the project a name.');
+    var shares = function (home) {
+      var seen = {};
+      return (Array.isArray(p.shareTeams) ? p.shareTeams : []).filter(function (id) {
+        if (!id || id === home || seen[id] || !DB.get('teams', id)) return false; seen[id] = 1; return true;
+      });
+    };
     var existing = p.id ? DB.get('projects', p.id) : null;
     if (existing) {
-      if (!canSeeTeam(u, existing.teamId)) fail('You can’t edit this project.');
+      if (!canSeeProject(u, existing)) fail('You can’t edit this project.');
+      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId);
       DB.update('projects', existing.id, fields);
       return DB.get('projects', existing.id);
     }
-    var teamId = isAdmin(u) && p.teamId ? p.teamId : u.teamId;
+    var teamId = p.teamId && canSeeTeam(u, p.teamId) ? p.teamId : u.teamId;
     if (!DB.get('teams', teamId)) fail('Choose a team for this project.');
-    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO() }, fields);
+    fields.shareTeams = shares(teamId);
+    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO(), stages: [] }, fields);
     if (!obj.ownerId) obj.ownerId = u.id;
     DB.insert('projects', obj);
     log(DB, u, teamId, 'project', obj.id, 'created the project ' + obj.name, []);
@@ -364,7 +394,7 @@ var ACTIONS = {
   deleteProject: function (DB, r) {
     var u = auth(DB, r.token), p = DB.get('projects', r.id);
     if (!p) return { ok: true };
-    if (!canSeeTeam(u, p.teamId)) fail('That project no longer exists.');
+    if (!canSeeProject(u, p)) fail('That project no longer exists.');
     if (!(canManageTeam(u, p.teamId) || p.createdBy === u.id)) fail('Only the person who created this project or a department head can delete it.');
     DB.all('tasks').filter(function (t) { return t.projectId === p.id; }).forEach(function (t) {
       DB.all('comments').filter(function (c) { return c.taskId === t.id; }).forEach(function (c) { DB.remove('comments', c.id); });
@@ -379,22 +409,24 @@ var ACTIONS = {
   saveTask: function (DB, r) {
     var u = auth(DB, r.token), t = r.task || {};
     var existing = t.id ? DB.get('tasks', t.id) : null;
-    if (existing) { if (!canSeeTeam(u, existing.teamId)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
+    if (existing) { if (!canSeeTask(DB, u, existing)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
     var base = existing || {};
     var projectId = t.projectId !== undefined ? str(t.projectId) : base.projectId;
     var project = projectId ? DB.get('projects', projectId) : null;
-    if (projectId && (!project || !canSeeTeam(u, project.teamId))) fail('Choose a project you belong to.');
+    if (projectId && (!project || !canSeeProject(u, project))) fail('Choose a project you belong to.');
     var parent = t.parentId || base.parentId ? DB.get('tasks', t.parentId || base.parentId) : null;
     var teamId = project ? project.teamId : (parent ? parent.teamId : (existing ? existing.teamId : u.teamId));
-    if (isAdmin(u) && !project && !parent && !existing && t.teamId) teamId = t.teamId;
-    if (!canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
-    var team = DB.all('users').filter(function (x) { return x.teamId === teamId && x.status === 'active'; }).map(function (x) { return x.id; });
+    if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
+    if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
+    var allowedTeams = project ? projTeams(project) : [teamId];
+    var team = DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).some(function (tt) { return allowedTeams.indexOf(tt) >= 0; }); }).map(function (x) { return x.id; });
+    var stageIds = stagesOf(project).map(function (s) { return s.id; });
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
     var f = {};
     if (t.title !== undefined) f.title = str(t.title, 300);
     if (t.notes !== undefined) f.notes = str(t.notes, 10000);
-    if (t.status !== undefined) f.status = STATUSES.indexOf(t.status) >= 0 ? t.status : 'todo';
+    if (t.status !== undefined) f.status = stageIds.indexOf(t.status) >= 0 ? t.status : stageIds[0];
     if (t.priority !== undefined) f.priority = PRIORITIES.indexOf(t.priority) >= 0 ? t.priority : 'none';
     if (t.due !== undefined) f.due = str(t.due, 10);
     if (t.order !== undefined) f.order = Number(t.order) || 0;
@@ -426,7 +458,7 @@ var ACTIONS = {
   deleteTask: function (DB, r) {
     var u = auth(DB, r.token), t = DB.get('tasks', r.id);
     if (!t) return { ok: true };
-    if (!canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
+    if (!canSeeTask(DB, u, t)) fail('That task no longer exists.');
     if (!(canManageTeam(u, t.teamId) || t.createdBy === u.id)) fail('Only the person who created this task or a department head can delete it.');
     var kill = function (id) {
       DB.all('tasks').filter(function (x) { return x.parentId === id; }).forEach(function (x) { kill(x.id); });
@@ -445,15 +477,21 @@ var ACTIONS = {
     if (parent && parent.parentId) parent = DB.get('comments', parent.parentId) || parent;
     var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO(), parentId: parent ? parent.id : '', reactions: {} };
     DB.insert('comments', c);
-    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', [parent.userId]);
-    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    var mentioned = (Array.isArray(r.mentions) ? r.mentions : []).filter(function (id) {
+      var x = DB.get('users', id); return x && x.id !== u.id && x.status === 'active' && canSeeTask(DB, x, t);
+    });
+    if (mentioned.length) log(DB, u, t.teamId, 'mention', t.id, 'mentioned you on “' + t.title + '”', mentioned);
+    var others = function (l) { return l.filter(function (id) { return mentioned.indexOf(id) < 0; }); };
+    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', others([parent.userId]));
+    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', others([t.createdBy].concat(t.assignees || [])));
     return c;
   },
 
   /* Tap a reaction to add it; tap it again to take it back. */
   reactComment: function (DB, r) {
     var u = auth(DB, r.token), c = DB.get('comments', r.id);
-    if (!c || !canSeeTeam(u, c.teamId)) fail('That comment no longer exists.');
+    var ct = c ? DB.get('tasks', c.taskId) : null;
+    if (!c || !ct || !canSeeTask(DB, u, ct)) fail('That comment no longer exists.');
     if (REACTIONS.indexOf(r.emoji) < 0) fail('Choose one of the reactions.');
     var re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
     var list = re[r.emoji] || [], i = list.indexOf(u.id);
@@ -500,7 +538,7 @@ var ACTIONS = {
   updateUser: function (DB, r) {
     var u = auth(DB, r.token), target = DB.get('users', r.userId), patch = r.patch || {};
     if (!target) fail('That person no longer exists.');
-    if (!canManageTeam(u, target.teamId)) fail('Only the main admin or this team’s department head can change this.');
+    if (!userTeams(target).some(function (t) { return canManageTeam(u, t); })) fail('Only the main admin or this team’s department head can change this.');
     if (target.role === 'admin' && !isAdmin(u)) fail('You can’t change the main admin.');
     var f = {};
     if (patch.name !== undefined) f.name = str(patch.name, 60) || target.name;
@@ -516,6 +554,16 @@ var ACTIONS = {
       if (!isAdmin(u)) fail('Only the main admin can move people between teams.');
       var nt = DB.get('teams', patch.teamId); if (!nt) fail('Choose a team.');
       f.teamId = nt.id; f.propertyCode = nt.propertyCode;
+    }
+    if (patch.teamIds !== undefined) {
+      var home = f.teamId || target.teamId, cur = Array.isArray(target.teamIds) ? target.teamIds : [], mineT = userTeams(u), next = [];
+      (Array.isArray(patch.teamIds) ? patch.teamIds : []).forEach(function (id) {
+        if (!id || id === home || next.indexOf(id) >= 0 || !DB.get('teams', id)) return;
+        if (!isAdmin(u) && cur.indexOf(id) < 0 && mineT.indexOf(id) < 0) fail('You can only give access to teams you manage.');
+        next.push(id);
+      });
+      if (!isAdmin(u)) cur.forEach(function (id) { if (next.indexOf(id) < 0 && mineT.indexOf(id) < 0) next.push(id); });
+      f.teamIds = next;
     }
     if (patch.status !== undefined) {
       if (['active', 'disabled'].indexOf(patch.status) < 0) fail('Unknown status.');
@@ -571,6 +619,28 @@ var ACTIONS = {
     var salt = uid('s');
     DB.update('users', target.id, { salt: salt, pinHash: pinHash(salt, target.username, pin), failed: 0, lockedUntil: '' });
     return { ok: true };
+  },
+
+  /* Main admin or the project team's department head edits the stages (columns) of a project. Done always stays last. */
+  saveStages: function (DB, r) {
+    var u = auth(DB, r.token), p = DB.get('projects', r.projectId);
+    if (!p || !canSeeProject(u, p)) fail('That project no longer exists.');
+    if (!projTeams(p).some(function (t) { return canManageTeam(u, t); })) fail('Only the main admin or a department head can change stages.');
+    var out = [], seen = {}, done = null;
+    (Array.isArray(r.stages) ? r.stages : []).slice(0, 12).forEach(function (s) {
+      var name = str(s && s.name, 30); if (!name) return;
+      var id = /^[a-z][a-z0-9]{1,30}$/.test(String(s.id || '')) ? String(s.id) : uid('s');
+      if (seen[id]) return; seen[id] = 1;
+      var st = { id: id, name: name, color: str(s.color, 20) || 'gray' };
+      if (id === 'done') done = st; else out.push(st);
+    });
+    if (!out.length) fail('Keep at least one stage before Done.');
+    out.push(done || { id: 'done', name: 'Done', color: 'green' });
+    var ids = out.map(function (s) { return s.id; });
+    DB.all('tasks').filter(function (t) { return t.projectId === p.id && ids.indexOf(t.status) < 0; })
+      .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
+    DB.update('projects', p.id, { stages: out, updatedAt: nowISO() });
+    return DB.get('projects', p.id);
   },
 
   updateProfile: function (DB, r) {

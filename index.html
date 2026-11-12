@@ -469,6 +469,38 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .sb-acts{display:flex;flex-direction:column;gap:2px}
 .sb-item.danger,.sb-item.danger svg.i{color:var(--red)}
 
+/* ---------- stages, sharing, mentions, back ---------- */
+.add-col{min-height:64px;align-items:center;justify-content:center;flex-direction:row;gap:8px;color:var(--text-2);font-weight:600;font-size:15px;
+  background:transparent;box-shadow:inset 0 0 0 1.5px var(--fill);transition:background .2s,color .2s}
+.add-col:hover{background:var(--fill-4);color:var(--accent)}
+.sec-h.add-stage{color:var(--text-2);font-weight:500;font-size:15px}
+.sec-h.add-stage:hover{color:var(--accent)}
+.stg{gap:8px}
+.stg-c{width:26px;height:26px;border-radius:50%;flex:none;margin:0 4px;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.1);transition:transform .3s var(--spring)}
+.stg-c:active{transform:scale(.85)}
+.stg-n{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:17px;color:var(--text);padding:6px 0;border-radius:8px}
+.stg-n:focus{background:var(--fill-4);padding:6px 8px}
+.stg .circle[disabled]{opacity:.25;pointer-events:none}
+.switch{position:relative;width:51px;height:31px;flex:none;cursor:pointer}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--fill);transition:background .25s}
+.switch span::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 1px 1px rgba(0,0,0,.16);transition:transform .35s var(--spring)}
+.switch input:checked+span{background:var(--green)}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.mention{color:var(--accent);font-weight:600}
+.mention.me{background:var(--accent-soft);border-radius:6px;padding:0 3px}
+.mention-pop{position:absolute;left:12px;right:12px;bottom:calc(var(--safe-b) + 66px);z-index:3;display:flex;flex-direction:column;padding:6px;border-radius:20px;
+  background:var(--glass-strong);-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);box-shadow:0 14px 40px rgba(0,0,0,.2),inset 0 0 0 .5px var(--glass-edge);
+  animation:menu .28s var(--spring);transform-origin:bottom left;max-width:420px}
+.mention-pop button{display:flex;align-items:center;gap:10px;min-height:40px;padding:4px 10px;border-radius:12px;text-align:left}
+.mention-pop button.on,.mention-pop button:hover{background:var(--fill-3)}
+.mention-pop .mn{font-weight:600;font-size:15px}
+.mention-pop .mu{font-size:13px;color:var(--text-2);margin-left:auto}
+.back-pill{display:inline-flex;align-items:center;gap:4px;height:44px;padding:0 16px 0 10px;border-radius:999px;color:var(--accent);font-size:15px;font-weight:600;max-width:60%;transition:transform .35s var(--spring)}
+.back-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back-pill:active{transform:scale(.95)}
+
 /* ---------- motion helpers ---------- */
 .reveal{opacity:0;transform:translateY(22px) scale(.985);transition:opacity .5s var(--ease),transform .75s cubic-bezier(.34,1.2,.64,1)}
 .reveal.in{opacity:1;transform:none}
@@ -652,16 +684,20 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 var TABLES = {
   properties: ['id','code','name','createdAt','color','logo'],
   teams:      ['id','propertyCode','name','color','createdAt'],
-  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV'],
+  users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
-  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived'],
+  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, shareTeams: 1, mentions: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
-var STATUSES = ['todo','doing','review','done'];
+var DEFAULT_STAGES = [
+  { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
+  { id: 'review', name: 'In Review', color: 'purple' }, { id: 'followup', name: 'Follow Up', color: 'orange' },
+  { id: 'done', name: 'Done', color: 'green' }];
+function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
 var AVATAR_COLORS = ['blue','indigo','purple','pink','red','orange','green','teal','brown'];
@@ -729,11 +765,25 @@ function makeToken() { return 't' + sha256(uid() + Math.random() + Date.now()).s
 function publicUser(u) {
   return { id: u.id, propertyCode: u.propertyCode, teamId: u.teamId, username: u.username, name: u.name,
     jobTitle: u.jobTitle, role: u.role, status: u.status, avatarColor: u.avatarColor, createdAt: u.createdAt,
-    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', photoV: u.photo ? String(u.photoV || '1') : '' };
+    approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', teamIds: Array.isArray(u.teamIds) ? u.teamIds : [], photoV: u.photo ? String(u.photoV || '1') : '' };
 }
 function isAdmin(u) { return u.role === 'admin'; }
-function canSeeTeam(u, teamId) { return isAdmin(u) || u.teamId === teamId; }
-function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && u.teamId === teamId); }
+/* A person's teams: their home team plus any extra teams (cluster colleagues working across properties). */
+function userTeams(u) {
+  var l = [u.teamId];
+  (Array.isArray(u.teamIds) ? u.teamIds : []).forEach(function (t) { if (t && l.indexOf(t) < 0) l.push(t); });
+  return l;
+}
+function canSeeTeam(u, teamId) { return isAdmin(u) || userTeams(u).indexOf(teamId) >= 0; }
+function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && userTeams(u).indexOf(teamId) >= 0); }
+/* A project belongs to one team and can be shared with teams at other properties. */
+function projTeams(p) { return [p.teamId].concat(Array.isArray(p.shareTeams) ? p.shareTeams : []); }
+function canSeeProject(u, p) { if (isAdmin(u)) return true; var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; }); }
+function canSeeTask(DB, u, t) {
+  if (canSeeTeam(u, t.teamId)) return true;
+  var p = t.projectId ? DB.get('projects', t.projectId) : null;
+  return !!(p && canSeeProject(u, p));
+}
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
 function auth(DB, token) {
@@ -754,7 +804,7 @@ function headsOf(DB, teamId) {
 }
 function taskOrFail(DB, u, id) {
   var t = DB.get('tasks', id);
-  if (!t || !canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
+  if (!t || !canSeeTask(DB, u, t)) fail('That task no longer exists.');
   return t;
 }
 
@@ -817,25 +867,29 @@ var ACTIONS = {
 
   /* ---------- everything the signed-in person can see ---------- */
   sync: function (DB, r) {
-    var u = auth(DB, r.token);
-    var admin = isAdmin(u);
-    var teams = DB.all('teams').filter(function (t) { return admin || t.id === u.teamId; });
-    var teamIds = {}; teams.forEach(function (t) { teamIds[t.id] = 1; });
-    var inScope = function (x) { return !!teamIds[x.teamId]; };
+    var u = auth(DB, r.token), admin = isAdmin(u), mine = userTeams(u);
+    var projects = DB.all('projects').filter(function (p) { return canSeeProject(u, p); });
+    var pIds = {}, tset = {};
+    mine.forEach(function (t) { tset[t] = 1; });
+    projects.forEach(function (p) { pIds[p.id] = 1; projTeams(p).forEach(function (t) { tset[t] = 1; }); });
+    var tasks = DB.all('tasks').filter(function (t) { return admin || mine.indexOf(t.teamId) >= 0 || (t.projectId && pIds[t.projectId]); });
+    var tIds = {}; tasks.forEach(function (t) { tIds[t.id] = 1; });
     var users = DB.all('users').filter(function (x) {
       if (admin) return true;
-      if (x.teamId !== u.teamId) return false;
-      return x.status === 'active' || u.role === 'head';
+      var xt = userTeams(x);
+      if (!xt.some(function (t) { return tset[t]; })) return false;
+      if (x.status === 'active') return true;
+      return u.role === 'head' && xt.some(function (t) { return mine.indexOf(t) >= 0; });
     }).map(publicUser);
-    var activity = DB.all('activity').filter(inScope)
-      .sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
+    var activity = DB.all('activity').filter(function (a) {
+      return admin || mine.indexOf(a.teamId) >= 0 || tIds[a.refId] || (a.targets || []).indexOf(u.id) >= 0;
+    }).sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; }).slice(0, 250);
     return {
       me: publicUser(u),
-      properties: DB.all('properties').filter(function (p) { return admin || p.code === u.propertyCode; }).map(publicProperty),
-      teams: teams, users: users,
-      projects: DB.all('projects').filter(inScope),
-      tasks: DB.all('tasks').filter(inScope),
-      comments: DB.all('comments').filter(inScope),
+      properties: DB.all('properties').map(publicProperty),
+      teams: DB.all('teams'), users: users,
+      projects: projects, tasks: tasks,
+      comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
       activity: activity,
       serverTime: nowISO()
     };
@@ -848,15 +902,23 @@ var ACTIONS = {
       ownerId: str(p.ownerId), status: PROJECT_STATUSES.indexOf(p.status) >= 0 ? p.status : 'on_track', due: str(p.due, 10),
       archived: truthy(p.archived), updatedAt: nowISO() };
     if (!fields.name) fail('Give the project a name.');
+    var shares = function (home) {
+      var seen = {};
+      return (Array.isArray(p.shareTeams) ? p.shareTeams : []).filter(function (id) {
+        if (!id || id === home || seen[id] || !DB.get('teams', id)) return false; seen[id] = 1; return true;
+      });
+    };
     var existing = p.id ? DB.get('projects', p.id) : null;
     if (existing) {
-      if (!canSeeTeam(u, existing.teamId)) fail('You can’t edit this project.');
+      if (!canSeeProject(u, existing)) fail('You can’t edit this project.');
+      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId);
       DB.update('projects', existing.id, fields);
       return DB.get('projects', existing.id);
     }
-    var teamId = isAdmin(u) && p.teamId ? p.teamId : u.teamId;
+    var teamId = p.teamId && canSeeTeam(u, p.teamId) ? p.teamId : u.teamId;
     if (!DB.get('teams', teamId)) fail('Choose a team for this project.');
-    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO() }, fields);
+    fields.shareTeams = shares(teamId);
+    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO(), stages: [] }, fields);
     if (!obj.ownerId) obj.ownerId = u.id;
     DB.insert('projects', obj);
     log(DB, u, teamId, 'project', obj.id, 'created the project ' + obj.name, []);
@@ -866,7 +928,7 @@ var ACTIONS = {
   deleteProject: function (DB, r) {
     var u = auth(DB, r.token), p = DB.get('projects', r.id);
     if (!p) return { ok: true };
-    if (!canSeeTeam(u, p.teamId)) fail('That project no longer exists.');
+    if (!canSeeProject(u, p)) fail('That project no longer exists.');
     if (!(canManageTeam(u, p.teamId) || p.createdBy === u.id)) fail('Only the person who created this project or a department head can delete it.');
     DB.all('tasks').filter(function (t) { return t.projectId === p.id; }).forEach(function (t) {
       DB.all('comments').filter(function (c) { return c.taskId === t.id; }).forEach(function (c) { DB.remove('comments', c.id); });
@@ -881,22 +943,24 @@ var ACTIONS = {
   saveTask: function (DB, r) {
     var u = auth(DB, r.token), t = r.task || {};
     var existing = t.id ? DB.get('tasks', t.id) : null;
-    if (existing) { if (!canSeeTeam(u, existing.teamId)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
+    if (existing) { if (!canSeeTask(DB, u, existing)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
     var base = existing || {};
     var projectId = t.projectId !== undefined ? str(t.projectId) : base.projectId;
     var project = projectId ? DB.get('projects', projectId) : null;
-    if (projectId && (!project || !canSeeTeam(u, project.teamId))) fail('Choose a project you belong to.');
+    if (projectId && (!project || !canSeeProject(u, project))) fail('Choose a project you belong to.');
     var parent = t.parentId || base.parentId ? DB.get('tasks', t.parentId || base.parentId) : null;
     var teamId = project ? project.teamId : (parent ? parent.teamId : (existing ? existing.teamId : u.teamId));
-    if (isAdmin(u) && !project && !parent && !existing && t.teamId) teamId = t.teamId;
-    if (!canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
-    var team = DB.all('users').filter(function (x) { return x.teamId === teamId && x.status === 'active'; }).map(function (x) { return x.id; });
+    if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
+    if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
+    var allowedTeams = project ? projTeams(project) : [teamId];
+    var team = DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).some(function (tt) { return allowedTeams.indexOf(tt) >= 0; }); }).map(function (x) { return x.id; });
+    var stageIds = stagesOf(project).map(function (s) { return s.id; });
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
     var f = {};
     if (t.title !== undefined) f.title = str(t.title, 300);
     if (t.notes !== undefined) f.notes = str(t.notes, 10000);
-    if (t.status !== undefined) f.status = STATUSES.indexOf(t.status) >= 0 ? t.status : 'todo';
+    if (t.status !== undefined) f.status = stageIds.indexOf(t.status) >= 0 ? t.status : stageIds[0];
     if (t.priority !== undefined) f.priority = PRIORITIES.indexOf(t.priority) >= 0 ? t.priority : 'none';
     if (t.due !== undefined) f.due = str(t.due, 10);
     if (t.order !== undefined) f.order = Number(t.order) || 0;
@@ -928,7 +992,7 @@ var ACTIONS = {
   deleteTask: function (DB, r) {
     var u = auth(DB, r.token), t = DB.get('tasks', r.id);
     if (!t) return { ok: true };
-    if (!canSeeTeam(u, t.teamId)) fail('That task no longer exists.');
+    if (!canSeeTask(DB, u, t)) fail('That task no longer exists.');
     if (!(canManageTeam(u, t.teamId) || t.createdBy === u.id)) fail('Only the person who created this task or a department head can delete it.');
     var kill = function (id) {
       DB.all('tasks').filter(function (x) { return x.parentId === id; }).forEach(function (x) { kill(x.id); });
@@ -947,15 +1011,21 @@ var ACTIONS = {
     if (parent && parent.parentId) parent = DB.get('comments', parent.parentId) || parent;
     var c = { id: cleanId(r.id, 'c'), teamId: t.teamId, taskId: t.id, userId: u.id, text: text, createdAt: nowISO(), parentId: parent ? parent.id : '', reactions: {} };
     DB.insert('comments', c);
-    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', [parent.userId]);
-    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', [t.createdBy].concat(t.assignees || []));
+    var mentioned = (Array.isArray(r.mentions) ? r.mentions : []).filter(function (id) {
+      var x = DB.get('users', id); return x && x.id !== u.id && x.status === 'active' && canSeeTask(DB, x, t);
+    });
+    if (mentioned.length) log(DB, u, t.teamId, 'mention', t.id, 'mentioned you on “' + t.title + '”', mentioned);
+    var others = function (l) { return l.filter(function (id) { return mentioned.indexOf(id) < 0; }); };
+    if (parent) log(DB, u, t.teamId, 'comment', t.id, 'replied to a comment on “' + t.title + '”', others([parent.userId]));
+    else log(DB, u, t.teamId, 'comment', t.id, 'commented on “' + t.title + '”', others([t.createdBy].concat(t.assignees || [])));
     return c;
   },
 
   /* Tap a reaction to add it; tap it again to take it back. */
   reactComment: function (DB, r) {
     var u = auth(DB, r.token), c = DB.get('comments', r.id);
-    if (!c || !canSeeTeam(u, c.teamId)) fail('That comment no longer exists.');
+    var ct = c ? DB.get('tasks', c.taskId) : null;
+    if (!c || !ct || !canSeeTask(DB, u, ct)) fail('That comment no longer exists.');
     if (REACTIONS.indexOf(r.emoji) < 0) fail('Choose one of the reactions.');
     var re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {};
     var list = re[r.emoji] || [], i = list.indexOf(u.id);
@@ -1002,7 +1072,7 @@ var ACTIONS = {
   updateUser: function (DB, r) {
     var u = auth(DB, r.token), target = DB.get('users', r.userId), patch = r.patch || {};
     if (!target) fail('That person no longer exists.');
-    if (!canManageTeam(u, target.teamId)) fail('Only the main admin or this team’s department head can change this.');
+    if (!userTeams(target).some(function (t) { return canManageTeam(u, t); })) fail('Only the main admin or this team’s department head can change this.');
     if (target.role === 'admin' && !isAdmin(u)) fail('You can’t change the main admin.');
     var f = {};
     if (patch.name !== undefined) f.name = str(patch.name, 60) || target.name;
@@ -1018,6 +1088,16 @@ var ACTIONS = {
       if (!isAdmin(u)) fail('Only the main admin can move people between teams.');
       var nt = DB.get('teams', patch.teamId); if (!nt) fail('Choose a team.');
       f.teamId = nt.id; f.propertyCode = nt.propertyCode;
+    }
+    if (patch.teamIds !== undefined) {
+      var home = f.teamId || target.teamId, cur = Array.isArray(target.teamIds) ? target.teamIds : [], mineT = userTeams(u), next = [];
+      (Array.isArray(patch.teamIds) ? patch.teamIds : []).forEach(function (id) {
+        if (!id || id === home || next.indexOf(id) >= 0 || !DB.get('teams', id)) return;
+        if (!isAdmin(u) && cur.indexOf(id) < 0 && mineT.indexOf(id) < 0) fail('You can only give access to teams you manage.');
+        next.push(id);
+      });
+      if (!isAdmin(u)) cur.forEach(function (id) { if (next.indexOf(id) < 0 && mineT.indexOf(id) < 0) next.push(id); });
+      f.teamIds = next;
     }
     if (patch.status !== undefined) {
       if (['active', 'disabled'].indexOf(patch.status) < 0) fail('Unknown status.');
@@ -1073,6 +1153,28 @@ var ACTIONS = {
     var salt = uid('s');
     DB.update('users', target.id, { salt: salt, pinHash: pinHash(salt, target.username, pin), failed: 0, lockedUntil: '' });
     return { ok: true };
+  },
+
+  /* Main admin or the project team's department head edits the stages (columns) of a project. Done always stays last. */
+  saveStages: function (DB, r) {
+    var u = auth(DB, r.token), p = DB.get('projects', r.projectId);
+    if (!p || !canSeeProject(u, p)) fail('That project no longer exists.');
+    if (!projTeams(p).some(function (t) { return canManageTeam(u, t); })) fail('Only the main admin or a department head can change stages.');
+    var out = [], seen = {}, done = null;
+    (Array.isArray(r.stages) ? r.stages : []).slice(0, 12).forEach(function (s) {
+      var name = str(s && s.name, 30); if (!name) return;
+      var id = /^[a-z][a-z0-9]{1,30}$/.test(String(s.id || '')) ? String(s.id) : uid('s');
+      if (seen[id]) return; seen[id] = 1;
+      var st = { id: id, name: name, color: str(s.color, 20) || 'gray' };
+      if (id === 'done') done = st; else out.push(st);
+    });
+    if (!out.length) fail('Keep at least one stage before Done.');
+    out.push(done || { id: 'done', name: 'Done', color: 'green' });
+    var ids = out.map(function (s) { return s.id; });
+    DB.all('tasks').filter(function (t) { return t.projectId === p.id && ids.indexOf(t.status) < 0; })
+      .forEach(function (t) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); });
+    DB.update('projects', p.id, { stages: out, updatedAt: nowISO() });
+    return DB.get('projects', p.id);
   },
 
   updateProfile: function (DB, r) {
@@ -1263,6 +1365,9 @@ const IC = {
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   sub: 'M6 4v10a2 2 0 0 0 2 2h10 M14 12l4 4-4 4',
   power: 'M12 2v10 M18.4 6.6a9 9 0 1 1-12.8 0',
+  chevU: 'M6 15l6-6 6 6',
+  share: 'M8 12h8 M12 8l4 4-4 4 M4 5v14 M20 5v14',
+  at: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1',
   refresh: 'M20 11a8 8 0 1 0-2.3 5.7 M20 4v7h-7',
   smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8.5 14a4 4 0 0 0 7 0 M9 9.5h.01 M15 9.5h.01',
   reply: 'M9 14L4 9l5-5 M4 9h10a6 6 0 0 1 6 6v5',
@@ -1312,7 +1417,7 @@ function seedDemo(DB) {
   const mkTeam = (code, name, color) => { const t = { id: uid('g'), propertyCode: code, name, color, createdAt: nowISO() }; DB.insert('teams', t); return t; };
   const mkt = DB.find('teams', t => t.name === 'Marketing');
   const sales = mkTeam('DXBAI', 'Sales', 'orange'); mkTeam('DXBAI', 'Food & Beverage', 'red'); mkTeam('DXBAI', 'Front Office', 'teal');
-  mkTeam('DXBPI', 'Marketing', 'blue'); mkTeam('DXBPI', 'Sales', 'orange'); mkTeam('DXBPI', 'Operations', 'green');
+  const pmkt = mkTeam('DXBPI', 'Marketing', 'blue'); mkTeam('DXBPI', 'Sales', 'orange'); mkTeam('DXBPI', 'Operations', 'green');
   const mkUser = (username, name, jobTitle, role, status, team, pin, color) => {
     const salt = uid('s');
     const u = { id: uid('u'), propertyCode: team.propertyCode, teamId: team.id, username, name, jobTitle, role, status, salt,
@@ -1324,6 +1429,7 @@ function seedDemo(DB) {
   const rahul = mkUser('rahul', 'Rahul Mehta', 'Graphic Designer', 'member', 'active', mkt, '2222', 'orange');
   const maria = mkUser('maria', 'Maria Santos', 'Digital Marketing Executive', 'member', 'active', mkt, '3333', 'green');
   const priya = mkUser('priya', 'Priya Nair', 'Director of Sales', 'head', 'active', sales, '4444', 'purple');
+  DB.update('users', maria.id, { teamIds: [pmkt.id] });
   const omar = mkUser('omar', 'Omar Haddad', 'Content Creator', 'member', 'pending', mkt, '5555', 'teal');
   mkUser('lina', 'Lina Fares', 'Sales Executive', 'member', 'pending', sales, '6666', 'blue');
   const t0 = Date.now();
@@ -1341,6 +1447,7 @@ function seedDemo(DB) {
     DB.insert('tasks', t); return t;
   };
   const fest = mkProject(mkt, 'Festive Season 2026', '🎄', 'red', 'on_track', addDays(40), 'Christmas, NYE gala and festive F&B offers across DXBAI and DXBPI.', aisha);
+  DB.update('projects', fest.id, { shareTeams: [pmkt.id] });
   const poster = mkTask(fest, 'Design NYE gala poster', [rahul], 'high', addDays(2), 'doing', { t: { notes: 'A4 print + Instagram story and feed sizes. Use the gold festive palette from the brand pack.' } });
   mkTask(fest, 'Get final NYE package pricing from F&B', [rahul], 'none', addDays(-2), 'done', { t: { parentId: poster.id, projectId: fest.id } });
   mkTask(fest, 'Export A4, story and feed sizes', [rahul], 'none', addDays(1), 'todo', { t: { parentId: poster.id } });
@@ -1423,15 +1530,27 @@ const taskById = id => D().tasks.find(t => t.id === id);
 const projById = id => D().projects.find(p => p.id === id);
 const teamById = id => D().teams.find(t => t.id === id);
 const propByCode = code => D().properties.find(p => p.code === code);
-const inScope = teamId => !isAdminU() || S.scope === 'all' || S.scope === teamId;
-const scopeTeamId = () => isAdminU() && S.scope !== 'all' ? S.scope : me().teamId;
-const canManage = teamId => isAdminU() || (me().role === 'head' && me().teamId === teamId);
-const projects = () => D().projects.filter(p => inScope(p.teamId) && !p.archived).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+/* Teams and visibility: cluster colleagues belong to more than one team, and projects can be shared across properties. */
+const userTeamsC = u => [u.teamId, ...((u && u.teamIds) || [])].filter((v, i, a) => v && a.indexOf(v) === i);
+const myTeamIds = () => isAdminU() ? D().teams.map(t => t.id) : userTeamsC(me());
+const multiScope = () => isAdminU() || myTeamIds().length > 1;
+const inScope = teamId => S.scope === 'all' || S.scope === teamId;
+const projTeamsC = p => [p.teamId, ...(p.shareTeams || [])];
+const projInScope = p => S.scope === 'all' || projTeamsC(p).includes(S.scope);
+const taskInScope = t => { const p = projById(t.projectId); return p ? projInScope(p) : inScope(t.teamId); };
+const userInScope = u => S.scope === 'all' || userTeamsC(u).includes(S.scope);
+const scopeTeamId = () => S.scope !== 'all' && myTeamIds().includes(S.scope) ? S.scope : me().teamId;
+const canManage = teamId => isAdminU() || (me().role === 'head' && myTeamIds().includes(teamId));
+const canEditStages = p => p && projTeamsC(p).some(canManage);
+const peopleFor = teamIds => D().users.filter(u => u.status === 'active' && (u.role === 'admin' || userTeamsC(u).some(t => teamIds.includes(t))));
+const stageList = p => stagesOf(p);
+function stageOf(t) { const l = stagesOf(projById(t.projectId)); const s = l.find(x => x.id === t.status) || l[0]; return { id: s.id, l: s.name, c: s.color }; }
+const projects = () => D().projects.filter(p => projInScope(p) && !p.archived).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 const topTasks = pid => D().tasks.filter(t => t.projectId === pid && !t.parentId);
 const subtasks = id => D().tasks.filter(t => t.parentId === id).sort((a, b) => a.order - b.order);
 const isDone = t => t.status === 'done';
-const myTasks = () => D().tasks.filter(t => (t.assignees || []).includes(me().id) && inScope(t.teamId));
-const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && inScope(u.teamId));
+const myTasks = () => D().tasks.filter(t => (t.assignees || []).includes(me().id) && taskInScope(t));
+const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && userInScope(u));
 const unread = () => D().activity.filter(a => (a.targets || []).includes(me().id) && a.createdAt > (S.seenAt || '')).length;
 const teamLabel = t => t ? (isAdminU() || D().properties.length > 1 ? t.propertyCode + ' · ' : '') + t.name : '';
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
@@ -1447,7 +1566,7 @@ function upsert(table, obj) {
 /* The property whose colour and logo the app wears right now. */
 function currentProperty() {
   let code = me().propertyCode;
-  if (isAdminU() && S.scope !== 'all') { const t = teamById(S.scope); if (t) code = t.propertyCode; }
+  if (S.scope !== 'all') { const t = teamById(S.scope); if (t) code = t.propertyCode; }
   return propByCode(code) || { code: code || '', name: '', color: 'blue', logo: '' };
 }
 function applyAccent(color) {
@@ -1514,7 +1633,7 @@ const Outbox = {
       if (!r.ok) { bad = true; toast(r.error, true); return; }
       const op = batch[i], d = r.data;
       if (op.action === 'saveTask') upsert('tasks', d);
-      else if (op.action === 'saveProject') upsert('projects', d);
+      else if (op.action === 'saveProject' || op.action === 'saveStages') upsert('projects', d);
       else if (op.action === 'addComment' || op.action === 'reactComment') upsert('comments', d);
       else if (op.action === 'updateUser') { upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
       else if (op.action === 'updateProfile') { S.data.me = Object.assign({}, me(), d); upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
@@ -1588,6 +1707,12 @@ function applyLocal(o) {
       Object.assign(m, p); const u = D().users.find(x => x.id === m.id); if (u) Object.assign(u, p); break;
     }
     case 'removeUser': S.data.users = D().users.filter(u => u.id !== o.userId); break;
+    case 'saveStages': {
+      const p = projById(o.projectId); if (!p) break;
+      p.stages = o.stages.map(s => Object.assign({}, s)); const ids = p.stages.map(s => s.id);
+      D().tasks.forEach(t => { if (t.projectId === p.id && !ids.includes(t.status)) t.status = ids[0]; });
+      break;
+    }
   }
 }
 function setLocalPhoto(u, data) {
@@ -1617,8 +1742,7 @@ function acceptData(data) {
   S.data = data;
   Outbox.q.forEach(applyLocal);
   Session.set(Session.token, data.me);
-  if (data.me.role !== 'admin') S.scope = 'all';
-  else if (S.scope !== 'all' && !data.teams.find(t => t.id === S.scope)) S.scope = 'all';
+  if (S.scope !== 'all' && !myTeamIds().includes(S.scope)) S.scope = 'all';
   rememberMe();
 }
 function rememberMe() {
@@ -1709,10 +1833,12 @@ function syncLabel() {
 function sidebarHtml() {
   const m = me(), pend = pendingUsers().length, un = unread(), prop = currentProperty();
   const nav = (v, icon, label, n = '') => `<button class="sb-item ${S.view === v ? 'on' : ''}" data-act="go" data-v="${v}">${ic(icon)}<span class="lbl">${label}</span>${n}</button>`;
-  const scopeName = S.scope === 'all' ? 'All Teams' : teamLabel(teamById(S.scope));
+  const scopeName = S.scope === 'all' ? (isAdminU() ? 'All Teams' : 'All My Teams') : teamLabel(teamById(S.scope));
+  const codes = [...new Set(myTeamIds().map(id => (teamById(id) || {}).propertyCode).filter(Boolean))];
+  const cluster = !isAdminU() && S.scope === 'all' && codes.length > 1;
   return `<nav class="sidebar glass" aria-label="Sidebar">
-    <div class="sb-head">${plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(prop.name || CONFIG.APP_NAME)}</div><div class="sb-sub">${CONFIG.APP_NAME} · ${esc(isAdminU() ? 'Main Admin' : teamLabel(teamById(m.teamId)))}</div></div></div>
-    ${isAdminU() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
+    <div class="sb-head">${plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${CONFIG.APP_NAME} · ${esc(isAdminU() ? 'Main Admin' : cluster ? codes.join(' · ') : teamLabel(teamById(m.teamId)))}</div></div></div>
+    ${multiScope() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
     <div class="sb-nav">
       ${nav('home', 'home', 'Home')}
       ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
@@ -1800,8 +1926,8 @@ function viewHtml() {
   return '';
 }
 function scopePill() {
-  if (!isAdminU()) return '';
-  const name = S.scope === 'all' ? 'All Teams' : teamLabel(teamById(S.scope));
+  if (!multiScope()) return '';
+  const name = S.scope === 'all' ? (isAdminU() ? 'All Teams' : 'All My Teams') : teamLabel(teamById(S.scope));
   return `<button class="pill scope-pill" style="margin:0 4px 16px;background:var(--surface);color:var(--text);height:32px" data-act="scopeMenu">${ic('building', 's')}${esc(name)}${ic('chevD', 'xs')}</button>`;
 }
 
@@ -1817,7 +1943,7 @@ function homeHtml() {
   const pend = pendingUsers();
   const projs = projects();
   return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
-    <p class="lt-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(isAdminU() ? (S.scope === 'all' ? 'All teams' : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
+    <p class="lt-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'All teams' : myTeamIds().map(id => teamLabel(teamById(id))).join(', ')) : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
     ${prop.name ? `<div class="prop-badge">${plogo(prop)}${esc(prop.name)}</div>` : ''} ${scopePill()}
     <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
     ${pend.length ? `<button class="banner" data-act="goRequests"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span>
@@ -1832,7 +1958,8 @@ function projectCard(p) {
   const team = teamById(p.teamId), prop = team && propByCode(team.propertyCode);
   return `<button class="pcard" style="--pc:${cvar(p.color)}" data-act="openProject" data-id="${p.id}">
     <div class="hd">${pdot(p)}<span class="nm">${esc(p.name)}</span></div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${pillHtml(ps)}${isAdminU() && S.scope === 'all' && team ? `<span class="chip" style="background:color-mix(in srgb,${cvar(prop ? prop.color : 'gray')} 14%,transparent);color:${cvar(prop ? prop.color : 'gray')}">${esc(teamLabel(team))}</span>` : ''}</div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${pillHtml(ps)}${(p.shareTeams || []).length ? `<span class="chip role-member" title="Shared across properties">${ic('share', 'xs')}${esc([...new Set(projTeamsC(p).map(id => (teamById(id) || {}).propertyCode).filter(Boolean))].join(' · '))}</span>`
+      : multiScope() && S.scope === 'all' && team ? `<span class="chip" style="background:color-mix(in srgb,${cvar(prop ? prop.color : 'gray')} 14%,transparent);color:${cvar(prop ? prop.color : 'gray')}">${esc(teamLabel(team))}</span>` : ''}</div>
     <div class="bar"><i style="width:${pr.pct}%;background:${cvar(p.color)}"></i></div>
     <div class="meta"><span class="tnum">${pr.done}/${pr.total} done${p.due ? ' · Due ' + fmtDay(p.due) : ''}</span>${avs(people, 4)}</div>
   </button>`;
@@ -1853,7 +1980,7 @@ function taskRow(t, opt = {}) {
         ${parent && !opt.nested ? `<span>${ic('sub', 'xs')}${esc(parent.title)}</span>` : ''}
         ${dueHtml(t)}${subs.length ? `<span>${ic('mytasks', 'xs')}${sd}/${subs.length}</span>` : ''}
         ${nc ? `<span>${ic('bubble', 'xs')}${nc}</span>` : ''}${nf ? `<span>${ic('clip', 'xs')}${nf}</span>` : ''}
-        ${opt.showStatus && !done ? `<span style="color:${cvar(STATUS[t.status].c)}">${STATUS[t.status].l}</span>` : ''}</div></div>
+        ${opt.showStatus && !done ? (st => `<span style="color:${cvar(st.c)}">${esc(st.l)}</span>`)(stageOf(t)) : ''}</div></div>
     <div class="right">${pending ? '<span class="pending-dot" title="Saving"></span>' : ''}${flag(t.priority)}${avs(t.assignees)}</div>
   </div>${nested}`;
 }
@@ -1883,10 +2010,10 @@ function myTasksHtml() {
 
 function projectsHtml() {
   const list = projects();
-  const archived = D().projects.filter(p => inScope(p.teamId) && p.archived);
+  const archived = D().projects.filter(p => projInScope(p) && p.archived);
   let body;
   if (!list.length) body = `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Projects group your team’s tasks, deadlines and files.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`;
-  else if (isAdminU() && S.scope === 'all') {
+  else if (multiScope() && S.scope === 'all') {
     const byTeam = {}; list.forEach(p => (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p));
     body = Object.keys(byTeam).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${byTeam[tid].length}</span></div><div class="pgrid">${byTeam[tid].map(projectCard).join('')}</div>`).join('');
   } else body = `<div class="pgrid">${list.map(projectCard).join('')}</div>`;
@@ -1916,18 +2043,20 @@ function projectHtml() {
 function filtered(list) { return S.mine ? list.filter(t => (t.assignees || []).includes(me().id)) : list; }
 function listHtml(p) {
   const all = filtered(topTasks(p.id)).sort((a, b) => a.order - b.order), pend = Outbox.pendingIds();
-  return Object.keys(STATUS).map(st => {
-    const list = all.filter(t => t.status === st), closed = S.collapsed[st];
-    return `<button class="sec-h ${closed ? 'closed' : ''}" data-act="collapse" data-s="${st}" aria-expanded="${!closed}">${ic('chevD', 's')}<span class="dot" style="background:${cvar(STATUS[st].c)}"></span>${STATUS[st].l}<span class="n tnum">${list.length}</span></button>
+  const stages = stageList(p), first = stages[0].id;
+  return stages.map(sg => {
+    const st = sg.id, list = all.filter(t => t.status === st || (st === first && !stages.some(x => x.id === t.status))), closed = S.collapsed[st];
+    return `<button class="sec-h ${closed ? 'closed' : ''}" data-act="collapse" data-s="${st}" aria-expanded="${!closed}">${ic('chevD', 's')}<span class="dot" style="background:${cvar(sg.color)}"></span>${esc(sg.name)}<span class="n tnum">${list.length}</span></button>
       ${closed ? '' : `<div class="menu">${list.map(t => taskRow(t, { pend, expand: true })).join('')}
-        ${st !== 'done' ? `<div class="addrow">${ic('plus')}<input id="add-${st}" placeholder="Add a task" data-enter="quickAdd" data-s="${st}" aria-label="Add a task to ${STATUS[st].l}"></div>` : (list.length ? '' : `<div class="addrow" style="color:var(--text-3)">Completed tasks appear here</div>`)}</div>`}`;
-  }).join('');
+        ${st !== 'done' ? `<div class="addrow">${ic('plus')}<input id="add-${st}" placeholder="Add a task" data-enter="quickAdd" data-s="${st}" aria-label="Add a task to ${esc(sg.name)}"></div>` : (list.length ? '' : `<div class="addrow" style="color:var(--text-3)">Completed tasks appear here</div>`)}</div>`}`;
+  }).join('') + (canEditStages(p) ? `<button class="sec-h add-stage" data-act="editStages">${ic('plus', 's')}Add or edit stages</button>` : '');
 }
 function boardHtml(p) {
   const all = filtered(topTasks(p.id)).sort((a, b) => a.order - b.order);
-  return `<div class="board">${Object.keys(STATUS).map(st => {
-    const list = all.filter(t => t.status === st);
-    return `<div class="col" data-col="${st}"><div class="col-h"><span class="dot" style="background:${cvar(STATUS[st].c)}"></span>${STATUS[st].l}<span class="n tnum">${list.length}</span></div>
+  const stages = stageList(p), first = stages[0].id;
+  return `<div class="board">${stages.map(sg => {
+    const st = sg.id, list = all.filter(t => t.status === st || (st === first && !stages.some(x => x.id === t.status)));
+    return `<div class="col" data-col="${st}"><div class="col-h"><span class="dot" style="background:${cvar(sg.color)}"></span>${esc(sg.name)}<span class="n tnum">${list.length}</span></div>
       ${list.map(t => {
         const subs = subtasks(t.id), nc = D().comments.filter(c => c.taskId === t.id).length;
         return `<div class="kcard ${isDone(t) ? 'done' : ''}" draggable="true" data-drag="${t.id}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
@@ -1937,7 +2066,7 @@ function boardHtml(p) {
       }).join('')}
       ${S.addingCol === st ? `<div class="kcard"><input class="input" style="height:36px;background:transparent;padding:0;box-shadow:none" id="addcol" placeholder="Task title" data-enter="quickAdd" data-s="${st}" aria-label="New task title"></div>`
         : `<button class="addcard" data-act="addCard" data-s="${st}">${ic('plus', 's')} Add Task</button>`}</div>`;
-  }).join('')}</div>`;
+  }).join('')}${canEditStages(p) ? `<button class="col add-col" data-act="editStages">${ic('plus')}<span>Add Stage</span></button>` : ''}</div>`;
 }
 function calendarHtml(p) {
   const [y, m] = S.calMonth.split('-').map(Number);
@@ -1962,8 +2091,9 @@ function calendarHtml(p) {
 function teamHtml() {
   const pend = pendingUsers(), tab = S.teamTab;
   const order = { admin: 0, head: 1, member: 2 };
-  const users = D().users.filter(u => u.status !== 'pending' && inScope(u.teamId)).sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
-  const groups = {}; users.forEach(u => (groups[u.teamId] = groups[u.teamId] || []).push(u));
+  const visTeams = myTeamIds().filter(inScope);
+  const users = D().users.filter(u => u.status !== 'pending' && userTeamsC(u).some(t => visTeams.includes(t))).sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+  const groups = {}; visTeams.forEach(tid => { const l = users.filter(u => userTeamsC(u).includes(tid)); if (l.length) groups[tid] = l; });
   const canApprove = isAdminU() || me().role === 'head';
   const myTeam = teamById(me().teamId);
   let body;
@@ -1974,12 +2104,12 @@ function teamHtml() {
       : `<div class="menu" style="margin-top:14px">${emptyState('personPlus', 'green', 'No requests', 'When someone signs up for your team, you’ll approve them here.')}</div>`;
   } else {
     body = Object.keys(groups).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${groups[tid].length}</span></div>
-      <div class="menu">${groups[tid].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div>${roleChip(u)}<span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>`).join('');
+      <div class="menu">${groups[tid].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div>${(u.teamIds || []).length ? '<span class="chip role-member">Cluster</span>' : ''}${roleChip(u)}<span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>`).join('');
     body += `<div class="section-title">Invite People</div><div class="menu"><div class="li" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--accent)">${ic('key')}</span>
       <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="sub" style="font-size:15px;margin-top:2px;letter-spacing:-.23px">New people enter property code <b class="tnum">${esc(me().propertyCode)}</b>, choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
   }
   const addBtn = canApprove ? `<button class="btn primary sm" data-act="addMember" style="margin:0 4px 0 auto">${ic('personPlus', 's')}Add Member</button>` : '';
-  return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(isAdminU() ? (S.scope === 'all' ? 'Everyone across all properties' : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
+  return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'Everyone across all properties' : 'Everyone in your teams') : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
     ${canApprove ? `<div class="seg" id="seg-team"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}${body}`;
 }
 
@@ -1988,7 +2118,7 @@ function actRow(a) {
   return `<button class="act ${forMe ? 'me' : ''}" data-act="openActivity" data-id="${a.id}">${av(u)}<div class="tx"><b>${esc(u ? u.name : 'Someone')}</b> ${esc(a.text)}</div><time>${ago(a.createdAt)}</time></button>`;
 }
 function activityHtml() {
-  const all = D().activity.filter(a => inScope(a.teamId));
+  const all = D().activity.filter(a => S.scope === 'all' || inScope(a.teamId) || (taskById(a.refId) && taskInScope(taskById(a.refId))));
   const list = S.actTab === 'me' ? all.filter(a => (a.targets || []).includes(me().id)) : all;
   return `<h1 class="large-title">Activity</h1><p class="lt-sub">Assignments, comments, files and approvals.</p>
     <div class="seg" id="seg-act"><button class="${S.actTab === 'me' ? 'on' : ''}" data-act="actTab" data-t="me">For Me</button><button class="${S.actTab === 'all' ? 'on' : ''}" data-act="actTab" data-t="all">Everything</button></div>
@@ -2001,9 +2131,9 @@ function searchHtml() {
 }
 function searchResultsHtml(q, inner) {
   const s = q.toLowerCase();
-  const tasks = D().tasks.filter(t => inScope(t.teamId) && ((t.title || '').toLowerCase().includes(s) || (t.notes || '').toLowerCase().includes(s))).slice(0, 40);
-  const projs = D().projects.filter(p => inScope(p.teamId) && p.name.toLowerCase().includes(s));
-  const people = D().users.filter(u => inScope(u.teamId) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
+  const tasks = D().tasks.filter(t => taskInScope(t) && ((t.title || '').toLowerCase().includes(s) || (t.notes || '').toLowerCase().includes(s))).slice(0, 40);
+  const projs = D().projects.filter(p => projInScope(p) && p.name.toLowerCase().includes(s));
+  const people = D().users.filter(u => userInScope(u) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
   const none = !tasks.length && !projs.length && !people.length;
   return `${inner ? '' : `<h1 class="large-title">Results for “${esc(q)}”</h1>`}
     ${none ? `<div class="menu" style="margin-top:14px">${emptyState('search', 'gray', 'No results', 'Try a different word.')}</div>` : ''}
@@ -2074,7 +2204,7 @@ function inspectorHtml(t) {
   const ass = (t.assignees || []).map(userById).filter(Boolean);
   return `<div class="insp-bar">
       <span class="grab-h"></span>
-      <button class="circle glass" data-act="closeTask" aria-label="Close">${ic('x')}</button><span class="sp"></span>
+      ${parent ? `<button class="back-pill glass" data-act="taskBack" data-id="${parent.id}" aria-label="Back to ${esc(parent.title)}">${ic('chevL', 's')}<span>${esc(parent.title)}</span></button>` : `<button class="circle glass" data-act="closeTask" aria-label="Close">${ic('x')}</button>`}<span class="sp"></span>
       <button class="btn sm" data-act="toggleDone" data-id="${t.id}" style="${done ? 'color:var(--green);background:color-mix(in srgb,var(--green) 15%,transparent)' : 'background:var(--surface);color:var(--text)'}">${ic('check', 's')}${done ? 'Completed' : 'Complete'}</button>
       <button class="circle glass" data-act="taskMenu" data-id="${t.id}" aria-label="More options">${ic('more')}</button>
     </div>
@@ -2088,16 +2218,16 @@ function inspectorHtml(t) {
         <div class="li"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Due date</span>
           <input type="date" class="date" id="due" value="${esc(t.due || '')}" data-change="saveDue" data-id="${t.id}" aria-label="Due date">
           ${t.due ? `<button class="circle sm" style="width:28px;height:28px" data-act="clearDue" data-id="${t.id}" aria-label="Clear date">${ic('x', 's')}</button>` : ''}</div>
-        <button class="li" data-act="statusMenu" data-id="${t.id}"><span class="ico" style="background:var(--blue)">${ic('board')}</span><span class="lbl">Status</span><span class="val">${pillHtml(STATUS[t.status])}</span></button>
+        <button class="li" data-act="statusMenu" data-id="${t.id}"><span class="ico" style="background:var(--blue)">${ic('board')}</span><span class="lbl">Stage</span><span class="val">${pillHtml(stageOf(t))}</span></button>
         <button class="li" data-act="prioMenu" data-id="${t.id}"><span class="ico" style="background:var(--yellow)">${ic('flag')}</span><span class="lbl">Priority</span><span class="val" style="color:${cvar(PRIO[t.priority || 'none'].c)}"><span>${PRIO[t.priority || 'none'].l}</span></span></button>
         ${parent ? '' : `<button class="li" data-act="moveMenu" data-id="${t.id}"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><span class="val"><span>${p ? esc(p.name) : 'None'}</span></span><span class="chev">${ic('updown', 's')}</span></button>`}
       </div>
       <div class="section-title">Notes</div>
       <textarea class="notes" id="notes" placeholder="Add details, links or instructions" data-change="saveNotes" data-id="${t.id}" aria-label="Notes">${esc(t.notes || '')}</textarea>
-      ${parent ? '' : `<div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span></div>
+      <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span></div>
       <div class="menu">${subs.map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
         <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${pend.has(s.id) ? '<span class="pending-dot"></span>' : ''}${dueHtml(s) ? `<span style="font-size:13px" class="sub">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('')}
-        <div class="addrow">${ic('plus')}<input id="addsub" placeholder="Add subtask" data-enter="addSub" data-id="${t.id}" aria-label="Add subtask"></div></div>`}
+        <div class="addrow">${ic('plus')}<input id="addsub" placeholder="Add subtask" data-enter="addSub" data-id="${t.id}" aria-label="Add subtask"></div></div>
       <div class="section-title">Files<span class="sp"></span>
         <label class="link" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">${ic('upload', 's')} Upload<input type="file" hidden data-change="upload" data-id="${t.id}" multiple></label></div>
       <div class="menu" id="files">${(t.attachments || []).length ? t.attachments.map(a => fileRow(t, a)).join('') : `<div class="li sub" style="font-size:15px;--inset:16px">${ic('clip', 's')} Briefs, artwork or contracts (up to ${API.live ? '10 MB' : '1.5 MB in demo'})</div>`}</div>
@@ -2105,8 +2235,47 @@ function inspectorHtml(t) {
       <div class="thread" id="thread">${threadHtml(t, comments, pend) || '<p class="sub" style="margin:0 6px;font-size:15px;letter-spacing:-.23px">No comments yet. Ask a question or share an update.</p>'}</div>
       <p class="meta-line">Created by ${esc(creator ? creator.name : 'someone')} · ${fullTime(t.createdAt)}${t.completedAt ? '<br>Completed ' + fullTime(t.completedAt) : ''}</p>
     </div>
-${S.replyTo && comments.find(c => c.id === S.replyTo) ? replyBar(comments.find(c => c.id === S.replyTo)) : ''}<div class="composer"><textarea id="cmt" rows="1" placeholder="${S.replyTo ? 'Write a reply' : 'Write a comment'}" aria-label="Write a comment" data-enter-send="1" data-id="${t.id}"></textarea>
+${S.replyTo && comments.find(c => c.id === S.replyTo) ? replyBar(comments.find(c => c.id === S.replyTo)) : ''}<div class="mention-pop" id="mpop" hidden></div><div class="composer"><textarea id="cmt" rows="1" placeholder="${S.replyTo ? 'Write a reply' : 'Write a comment'}" aria-label="Write a comment" data-enter-send="1" data-id="${t.id}"></textarea>
       <button class="circle tint" data-act="sendComment" data-id="${t.id}" aria-label="Send comment">${ic('up')}</button></div>`;
+}
+/* @mentions: people who can see this task. */
+function mentionable(t) { const p = projById(t.projectId); return peopleFor(p ? projTeamsC(p) : [t.teamId]).filter(u => u.id !== me().id); }
+function richText(text) {
+  let h = esc(text);
+  const us = D().users.filter(u => u.name).slice().sort((a, b) => b.name.length - a.name.length);
+  us.forEach(u => { const n = '@' + esc(u.name); if (h.includes(n)) h = h.split(n).join('\u0000' + u.id + '\u0001'); });
+  us.forEach(u => { const n = '@' + esc(u.username); h = h.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9._-])', 'g'), '\u0000' + u.id + '\u0001'); });
+  return h.replace(/\u0000([^\u0001]+)\u0001/g, (m, id) => { const u = userById(id); return `<span class="mention${id === me().id ? ' me' : ''}">@${esc(u ? u.name : '')}</span>`; });
+}
+const MP = { list: [], i: 0, start: -1 };
+function mentionCheck(box) {
+  const pop = $('#mpop'); if (!pop) return;
+  const upto = box.value.slice(0, box.selectionStart), m = upto.match(/(^|\s)@([^\s@]{0,20})$/);
+  const t = taskById(S.taskId);
+  if (!m || !t) { pop.hidden = true; MP.list = []; return; }
+  const q = m[2].toLowerCase();
+  MP.start = upto.length - m[2].length - 1;
+  MP.list = mentionable(t).filter(u => !q || u.name.toLowerCase().split(/\s+/).some(w => w.startsWith(q)) || u.username.startsWith(q)).slice(0, 6);
+  MP.i = 0;
+  if (!MP.list.length) { pop.hidden = true; return; }
+  drawMentions();
+  pop.hidden = false;
+}
+function drawMentions() {
+  const pop = $('#mpop'); if (!pop) return;
+  pop.innerHTML = MP.list.map((u, i) => `<button class="${i === MP.i ? 'on' : ''}" data-mi="${i}">${av(u, 'sm')}<span class="mn">${esc(u.name)}</span><span class="mu">@${esc(u.username)}</span></button>`).join('');
+  $$('[data-mi]', pop).forEach(b => b.onmousedown = e => { e.preventDefault(); pickMention(+b.dataset.mi); });
+}
+function pickMention(i) {
+  const box = $('#cmt'), u = MP.list[i]; if (!box || !u) return;
+  const end = box.selectionStart, before = box.value.slice(0, MP.start), after = box.value.slice(end);
+  const ins = '@' + u.name + ' ';
+  box.value = before + ins + after.replace(/^\S*/, '');
+  const pos = before.length + ins.length; box.setSelectionRange(pos, pos); box.focus();
+  $('#mpop').hidden = true; MP.list = []; autosize();
+}
+function mentionsIn(text, t) {
+  return mentionable(t).filter(u => text.includes('@' + u.name) || new RegExp('@' + u.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9._-])').test(text)).map(u => u.id);
 }
 function replyBar(c) {
   const u = userById(c.userId);
@@ -2123,7 +2292,7 @@ function threadHtml(t, comments, pend) {
       return `<button class="rx ${re[k].includes(me().id) ? 'on' : ''}" data-act="react" data-id="${c.id}" data-e="${k}" title="${esc(who)}">${k}<span class="tnum">${re[k].length}</span></button>`;
     }).join('');
     return `<div class="cmt ${mine ? 'mine' : ''} ${reply ? 'reply' : ''} ${pend.has(c.id) ? 'pending' : ''}" data-cid="${c.id}">${av(u, reply ? 'sm' : '')}<div style="flex:1;min-width:0">
-      <div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}</time></div><div class="tx">${esc(c.text)}</div></div>
+      <div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}</time></div><div class="tx">${richText(c.text)}</div></div>
       <div class="cmt-acts">${chips}<button class="cmt-a" data-act="reactMenu" data-id="${c.id}" aria-label="React">${ic('smile', 's')}</button>
         <button class="cmt-a" data-act="replyTo" data-id="${reply ? c.parentId : c.id}">Reply</button>
         ${mine || isAdminU() ? `<button class="cmt-a del" data-act="delComment" data-id="${c.id}">Delete</button>` : ''}</div></div></div>`;
@@ -2297,11 +2466,13 @@ const ACT = {
   calNav(el) { const d = +el.dataset.d; if (!d) S.calMonth = todayStr().slice(0, 7); else { const [y, m] = S.calMonth.split('-').map(Number); const n = new Date(y, m - 1 + d, 1); S.calMonth = n.getFullYear() + '-' + pad(n.getMonth() + 1); } render(); },
   openProject(el) { nav(() => { S.view = 'project'; S.projectId = el.dataset.id; S.q = ''; }, 'push'); },
   openTask(el) { S.taskId = el.dataset.id; render(); const is = $('#iscroll'); if (is) is.scrollTop = 0; },
-  closeTask() { S.taskId = null; render({ soft: true }); },
+  closeTask() { S.taskId = null; S.replyTo = null; render({ soft: true }); },
+  taskBack(el) { S.taskId = el.dataset.id; S.replyTo = null; render(); const i = $('#insp'); if (i && i.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) $$('.insp-scroll > *', i).forEach((x, k) => x.animate([{ opacity: 0, transform: 'translateX(-24px)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: k * 18, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'backwards' })); },
+  editStages() { stagesDialog(projById(S.projectId)); },
   scopeMenu(el) {
-    const items = [{ label: 'All Teams', checked: S.scope === 'all', onClick: () => { S.scope = 'all'; store.set('orbit_scope', 'all'); nav(() => { }, 'fade'); } }];
+    const items = [{ label: isAdminU() ? 'All Teams' : 'All My Teams', checked: S.scope === 'all', onClick: () => { S.scope = 'all'; store.set('orbit_scope', 'all'); nav(() => { }, 'fade'); } }];
     D().properties.forEach(p => {
-      const ts = D().teams.filter(t => t.propertyCode === p.code); if (!ts.length) return;
+      const ts = D().teams.filter(t => t.propertyCode === p.code && myTeamIds().includes(t.id)); if (!ts.length) return;
       items.push('-', { header: p.code + ' · ' + p.name });
       ts.forEach(t => items.push({ label: t.name, checked: S.scope === t.id, onClick: () => { S.scope = t.id; store.set('orbit_scope', t.id); nav(() => { if (S.view === 'project') S.view = 'projects'; }, 'fade'); } }));
     });
@@ -2314,7 +2485,7 @@ const ACT = {
     el.classList.add('pop'); el.classList.toggle('on', nowDone);
     setTimeout(() => saveTask({ id: t.id, status: nowDone ? 'done' : 'todo' }), 220);
   },
-  statusMenu(el) { const t = taskById(el.dataset.id); openMenu(el, Object.keys(STATUS).map(k => ({ html: pillHtml(STATUS[k]), checked: t.status === k, onClick: () => saveTask({ id: t.id, status: k }) }))); },
+  statusMenu(el) { const t = taskById(el.dataset.id), cur = stageOf(t).id; openMenu(el, stageList(projById(t.projectId)).map(s => ({ html: pillHtml({ l: s.name, c: s.color }), checked: cur === s.id, onClick: () => saveTask({ id: t.id, status: s.id }) }))); },
   prioMenu(el) { const t = taskById(el.dataset.id); openMenu(el, ['urgent', 'high', 'medium', 'low', 'none'].map(k => ({ label: PRIO[k].l, icon: `<span style="color:${cvar(PRIO[k].c)}">${ic('flag', 's')}</span>`, checked: (t.priority || 'none') === k, onClick: () => saveTask({ id: t.id, priority: k }) }))); },
   moveMenu(el) {
     const t = taskById(el.dataset.id);
@@ -2339,7 +2510,7 @@ const ACT = {
   clearDue(el) { saveTask({ id: el.dataset.id, due: '' }); },
   pickAssignees(el) {
     const t = taskById(el.dataset.id);
-    const people = D().users.filter(u => u.status === 'active' && (u.teamId === t.teamId || u.role === 'admin'));
+    const tp = projById(t.projectId), people = peopleFor(tp ? projTeamsC(tp) : [t.teamId]);
     const sel = new Set(t.assignees || []);
     openDialog({ title: 'Assign To', ok: 'Done', body: `<p class="lt-sub" style="margin:4px 4px 12px">Choose people from ${esc(teamLabel(teamById(t.teamId)))}.</p>
       <div class="menu">${people.map(u => `<button class="li ${sel.has(u.id) ? 'on' : ''}" data-pick="${u.id}">${av(u)}<span class="lbl"><div style="font-weight:600">${esc(u.name)}</div><div class="sub" style="font-size:13px;letter-spacing:-.08px">${esc(u.jobTitle || ROLE[u.role])}</div></span><span class="check ${sel.has(u.id) ? 'on' : ''}">${ic('check')}</span></button>`).join('')}</div>`,
@@ -2361,9 +2532,10 @@ const ACT = {
   addCard(el) { S.addingCol = el.dataset.s; render(); setTimeout(() => $('#addcol') && $('#addcol').focus(), 0); },
   sendComment(el) {
     const box = $('#cmt'); const v = box.value.trim(); if (!v) return;
-    box.value = ''; autosize();
+    box.value = ''; autosize(); const mp = $('#mpop'); if (mp) mp.hidden = true;
     const parentId = S.replyTo; S.replyTo = null;
-    op({ action: 'addComment', id: uidC('c'), taskId: el.dataset.id, text: v, parentId: parentId || '' });
+    const t = taskById(el.dataset.id);
+    op({ action: 'addComment', id: uidC('c'), taskId: el.dataset.id, text: v, parentId: parentId || '', mentions: t ? mentionsIn(v, t) : [] });
     renderInsp();
     const is = $('#iscroll'); if (is && !parentId) is.scrollTo({ top: is.scrollHeight, behavior: 'smooth' });
     setTimeout(() => $('#cmt') && $('#cmt').focus(), 0);
@@ -2425,8 +2597,8 @@ const ACT = {
         <div class="li"><span class="ico" style="background:var(--yellow)">${ic('flag')}</span><span class="lbl">Priority</span><select class="sel" id="nt-prio" aria-label="Priority">${['none', 'low', 'medium', 'high', 'urgent'].map(k => `<option value="${k}">${PRIO[k].l}</option>`).join('')}</select></div>
       </div>`,
       onOpen: root => {
-        const fill = () => { const p = projById($('#nt-proj', root).value); const tid = p ? p.teamId : scopeTeamId();
-          const people = D().users.filter(u => u.status === 'active' && (u.teamId === tid || u.role === 'admin'));
+        const fill = () => { const p = projById($('#nt-proj', root).value);
+          const people = peopleFor(p ? projTeamsC(p) : [scopeTeamId()]);
           $('#nt-who', root).innerHTML = `<option value="">Nobody</option>` + people.map(u => `<option value="${u.id}" ${u.id === me().id ? 'selected' : ''}>${esc(u.name)}${u.id === me().id ? ' (Me)' : ''}</option>`).join(''); };
         fill(); $('#nt-proj', root).onchange = fill;
         $('#nt-title', root).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-dact="ok"]', root).click(); } });
@@ -2445,6 +2617,7 @@ const ACT = {
   projMenu(el) {
     const p = projById(S.projectId);
     const items = [{ label: 'Edit Project', icon: ic('pencil', 's'), onClick: () => projectDialog(p) },
+      ...(canEditStages(p) ? [{ label: 'Edit Stages', icon: ic('board', 's'), onClick: () => stagesDialog(p) }] : []),
       { label: p.archived ? 'Restore Project' : 'Archive Project', icon: ic('archive', 's'), onClick: () => { op({ action: 'saveProject', project: Object.assign({}, p, { archived: !p.archived }) }); render(); toast(p.archived ? 'Project archived' : 'Project restored'); } }];
     if (p.createdBy === me().id || canManage(p.teamId)) items.push('-', { label: 'Delete Project', danger: true, icon: ic('trash', 's'), onClick: async () => {
       if (!await confirmBox({ title: 'Delete “' + p.name + '”?', msg: 'All of its tasks, comments and file links will be removed for everyone. This can’t be undone.', ok: 'Delete', danger: true })) return;
@@ -2556,18 +2729,94 @@ function projectDialog(p) {
     <div class="menu">${swatchesHtml(color, 'pj')}</div>
     <div class="section-title">Details</div>
     <div class="menu">
-      ${isNew && isAdminU() ? `<div class="li"><span class="ico" style="background:var(--indigo)">${ic('people')}</span><span class="lbl">Team</span><select class="sel" id="pj-team" aria-label="Team">${teams.map(t => `<option value="${t.id}" ${t.id === scopeTeamId() ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div>` : ''}
+      ${isNew && multiScope() ? `<div class="li"><span class="ico" style="background:var(--indigo)">${ic('people')}</span><span class="lbl">Team</span><select class="sel" id="pj-team" aria-label="Team">${teams.filter(t => myTeamIds().includes(t.id)).map(t => `<option value="${t.id}" ${t.id === scopeTeamId() ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div>` : ''}
       <div class="li"><span class="ico" style="background:var(--green)">${ic('flag')}</span><span class="lbl">Status</span><select class="sel" id="pj-status" aria-label="Status">${Object.keys(PSTATUS).map(k => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${PSTATUS[k].l}</option>`).join('')}</select></div>
       <div class="li"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Deadline</span><input type="date" class="date" id="pj-due" value="${esc(p.due || '')}" aria-label="Deadline"></div>
-    </div>`,
-    onOpen: root => wireSwatches(root, c => { color = c; }),
+    </div>
+    <div id="pj-share-box"></div>`,
+    onOpen: root => {
+      wireSwatches(root, c => { color = c; });
+      const homeTeam = () => teamById(isNew ? ($('#pj-team', root) ? $('#pj-team', root).value : scopeTeamId()) : p.teamId);
+      const draw = () => {
+        const ht = homeTeam(); if (!ht) return;
+        const cur = Array.from(root.querySelectorAll('[data-share]:checked')).map(x => $('#pj-st-' + x.dataset.share, root).value);
+        const pre = cur.length || root.dataset.drawn ? cur : (p.shareTeams || []);
+        $('#pj-share-box', root).innerHTML = shareRowsHtml('pj', ht, pre, D().teams);
+        wireShareRows(root, 'pj'); root.dataset.drawn = '1';
+      };
+      draw(); const sel = $('#pj-team', root); if (sel) sel.onchange = () => { root.dataset.drawn = ''; $('#pj-share-box', root).innerHTML = ''; draw(); };
+    },
     onOk: root => {
       const name = $('#pj-name', root).value.trim(); if (!name) { toast('Give the project a name.', true); return false; }
       const obj = Object.assign({}, isNew ? {} : p, { name, description: $('#pj-desc', root).value, color, status: $('#pj-status', root).value, due: $('#pj-due', root).value });
       if (isNew) { obj.id = uidC('p'); obj.teamId = $('#pj-team', root) ? $('#pj-team', root).value : scopeTeamId(); }
+      obj.shareTeams = readShareRows(root, 'pj');
       op({ action: 'saveProject', project: obj });
       if (isNew) nav(() => { S.view = 'project'; S.projectId = obj.id; }, 'push'); else render();
       toast(isNew ? 'Project created' : 'Project saved');
+    } });
+}
+
+/* "Also at other properties" rows: a switch per property, and which team there. Used for shared projects and cluster colleagues. */
+function shareRowsHtml(k, home, selected, teams, forUser) {
+  const props = D().properties.filter(p => p.code !== home.propertyCode && teams.some(t => t.propertyCode === p.code));
+  if (!props.length) return '';
+  return `<div class="section-title">${forUser ? 'Cluster Access' : 'Visible at Other Properties'}</div><div class="menu">${props.map(p => {
+    const ts = teams.filter(t => t.propertyCode === p.code);
+    const on = ts.find(t => selected.includes(t.id));
+    const def = on || ts.find(t => t.name.toLowerCase() === home.name.toLowerCase()) || ts[0];
+    return `<div class="li share-row" style="--inset:62px">${plogo(p)}<span class="lbl"><div style="font-weight:600">${esc(p.code)}</div>
+      <select class="sel share-team" id="${k}-st-${p.code}" ${on ? '' : 'hidden'} aria-label="Team at ${esc(p.code)}" style="text-align:left;text-align-last:left;max-width:100%;font-size:14px">${ts.map(t => `<option value="${t.id}" ${t.id === def.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+      <div class="sub share-off" style="font-size:13px" ${on ? 'hidden' : ''}>${esc(p.name)}</div></span>
+      <label class="switch"><input type="checkbox" data-share="${p.code}" ${on ? 'checked' : ''} aria-label="${forUser ? 'Give access to' : 'Show at'} ${esc(p.code)}"><span></span></label></div>`;
+  }).join('')}</div><p class="section-foot">${forUser ? 'Cluster colleagues see the projects and tasks of every team they belong to. Switch on a property and choose their team there.' : 'Everyone in the chosen team at that property can see and work on this project.'}</p>`;
+}
+function wireShareRows(root, k) {
+  $$('[data-share]', root).forEach(x => x.onchange = () => {
+    const row = x.closest('.share-row'); $('.share-team', row).hidden = !x.checked; $('.share-off', row).hidden = x.checked; Motion.haptic();
+  });
+}
+function readShareRows(root, k) { return $$('[data-share]', root).filter(x => x.checked).map(x => $('#' + k + '-st-' + x.dataset.share, root).value); }
+
+/* Stages editor: main admin and department heads add, rename, recolour and reorder a project's stages. Done stays last. */
+function stagesDialog(p) {
+  if (!p) return;
+  let list = stageList(p).map(s => Object.assign({}, s));
+  const counts = id => D().tasks.filter(t => t.projectId === p.id && !t.parentId && t.status === id).length;
+  const row = (s, i) => {
+    const done = s.id === 'done', last = list.length - 2;
+    return `<div class="li stg" style="--inset:58px"><button class="stg-c" data-sc="${i}" style="background:${cvar(s.color)}" aria-label="Change colour of ${esc(s.name)}"></button>
+      <input class="stg-n" data-sn="${i}" value="${esc(s.name)}" maxlength="30" aria-label="Stage name">
+      <span class="sub tnum" style="font-size:13px">${counts(s.id) || ''}</span>
+      ${done ? '<span class="sub" style="font-size:13px;width:110px;text-align:right">Always last</span>' : `<button class="circle sm" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${ic('chevU', 's')}</button>
+      <button class="circle sm" data-dn="${i}" ${i >= last ? 'disabled' : ''} aria-label="Move down">${ic('chevD', 's')}</button>
+      <button class="circle sm" data-del="${i}" ${list.length <= 2 ? 'disabled' : ''} aria-label="Delete ${esc(s.name)}" style="color:var(--red)">${ic('trash', 's')}</button>`}</div>`;
+  };
+  const draw = root => {
+    $('#stg-list', root).innerHTML = list.map(row).join('') + `<div class="addrow" style="--inset:58px">${ic('plus')}<input id="stg-add" placeholder="Add a stage, e.g. Waiting for Approval" maxlength="30" aria-label="New stage name"></div>`;
+    $$('[data-sn]', root).forEach(x => x.oninput = () => { list[+x.dataset.sn].name = x.value; });
+    $$('[data-sc]', root).forEach(x => x.onclick = () => { const s = list[+x.dataset.sc]; s.color = PCOLORS[(PCOLORS.indexOf(s.color) + 1) % PCOLORS.length]; x.style.background = cvar(s.color); Motion.haptic(); });
+    $$('[data-up]', root).forEach(x => x.onclick = () => { const i = +x.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(root); });
+    $$('[data-dn]', root).forEach(x => x.onclick = () => { const i = +x.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(root); });
+    $$('[data-del]', root).forEach(x => x.onclick = async () => {
+      const i = +x.dataset.del, s = list[i], n = counts(s.id);
+      if (n && !await confirmBox({ title: 'Delete “' + s.name + '”?', msg: n + (n === 1 ? ' task moves' : ' tasks move') + ' to “' + list.filter(x => x !== s)[0].name + '”.', ok: 'Delete', danger: true })) return;
+      list.splice(i, 1); draw(root);
+    });
+    const add = $('#stg-add', root);
+    add.onkeydown = e => { if (e.key !== 'Enter' || !add.value.trim()) return; e.preventDefault();
+      list.splice(list.length - 1, 0, { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: add.value.trim(), color: PCOLORS[(list.length * 3) % PCOLORS.length] });
+      draw(root); setTimeout(() => $('#stg-add', root).focus(), 0); };
+  };
+  openDialog({ title: 'Stages', ok: 'Save', body: `<p class="lt-sub" style="margin:4px 4px 12px">${esc(p.name)} · tap a dot to change its colour.</p><div class="menu" id="stg-list"></div>
+    <p class="section-foot">Every project starts with To Do, In Progress, In Review, Follow Up and Done.</p>`,
+    onOpen: draw,
+    onOk: root => {
+      const pending = $('#stg-add', root).value.trim();
+      if (pending) list.splice(list.length - 1, 0, { id: 's' + Date.now().toString(36), name: pending, color: 'teal' });
+      list = list.map(s => Object.assign({}, s, { name: s.name.trim() })).filter(s => s.name);
+      if (list.filter(s => s.id !== 'done').length < 1) { toast('Keep at least one stage before Done.', true); return false; }
+      op({ action: 'saveStages', projectId: p.id, stages: list }); render(); toast('Stages saved');
     } });
 }
 
@@ -2608,7 +2857,7 @@ function profileDialog() {
 }
 
 function userDialog(u, approving) {
-  const manage = canManage(u.teamId) && !(u.role === 'admin' && !isAdminU());
+  const manage = userTeamsC(u).some(canManage) && !(u.role === 'admin' && !isAdminU());
   const self = u.id === me().id;
   if (self && !approving) { nav(() => { S.view = 'settings'; }, 'push'); return; }
   const roles = isAdminU() ? ['member', 'head', 'admin'] : ['member', 'head'];
@@ -2620,6 +2869,7 @@ function userDialog(u, approving) {
       <div class="section-title" style="margin-top:8px">Role</div><div class="seg" id="ud-role" style="display:flex">${roles.map(r => `<button data-role="${r}" class="${(u.role || 'member') === r ? 'on' : ''}" style="flex:1">${ROLE[r]}</button>`).join('')}</div>
       <p class="section-foot">Department heads approve people, assign roles and manage their team.${isAdminU() ? ' Main admins see every team.' : ''}</p>
       ${isAdminU() ? `<div class="section-title">Team</div><div class="menu"><div class="li"><span class="lbl">Team</span><select class="sel" id="ud-team" aria-label="Team">${D().teams.map(t => `<option value="${t.id}" ${t.id === u.teamId ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div></div>` : ''}
+      <div id="ud-share-box"></div>
       ${approving ? '' : `<div class="section-title">Access</div><div class="menu">
         <div class="li"><span class="ico" style="background:var(--blue)">${ic('lock')}</span><span class="lbl">Reset PIN</span><input class="input" id="ud-pin" type="password" inputmode="numeric" maxlength="4" placeholder="New PIN" style="width:110px;height:36px;font-size:15px" aria-label="New PIN"><button class="btn sm" data-local="pin">Set</button></div>
         <button class="li" data-local="toggle"><span class="ico" style="background:var(--gray)">${ic('power')}</span><span class="lbl">${u.status === 'disabled' ? 'Turn On Account' : 'Turn Off Account'}</span></button>
@@ -2628,6 +2878,12 @@ function userDialog(u, approving) {
        <div class="li" style="--inset:16px"><span class="lbl">Open tasks</span><span class="val tnum">${D().tasks.filter(t => (t.assignees || []).includes(u.id) && !isDone(t)).length}</span></div></div>`}`;
   openDialog({ title: approving ? 'Approve Request' : 'Team Member', ok: manage ? (approving ? 'Approve' : 'Save') : '', cancel: manage ? 'Cancel' : 'Close', body,
     onOpen: root => {
+      const box = $('#ud-share-box', root), ht = teamById(u.teamId);
+      if (box && ht && manage) {
+        const allowed = isAdminU() ? D().teams : D().teams.filter(t => myTeamIds().includes(t.id) || (u.teamIds || []).includes(t.id));
+        box.innerHTML = shareRowsHtml('ud', ht, u.teamIds || [], allowed, true);
+        wireShareRows(root, 'ud');
+      }
       $$('[data-role]', root).forEach(b => b.onclick = () => { $$('[data-role]', root).forEach(x => x.classList.remove('on')); b.classList.add('on'); Motion.haptic(); });
       const ph = $('#ud-photo', root); if (ph) ph.onclick = async () => { const d = await pickImage({ max: 256, square: true }); if (!d) return; photo = d; $('.av', ph).outerHTML = `<span class="av xl"><img src="${d}" alt=""></span>`; };
       $$('[data-local]', root).forEach(b => b.onclick = async () => {
@@ -2644,6 +2900,7 @@ function userDialog(u, approving) {
       const patch = { jobTitle: $('#ud-job', root).value };
       const r = $('#ud-role .on', root); if (r) patch.role = r.dataset.role;
       const tm = $('#ud-team', root); if (tm) patch.teamId = tm.value;
+      if ($('#ud-share-box [data-share]', root)) patch.teamIds = readShareRows(root, 'ud');
       if (photo !== undefined) patch.photo = photo;
       if (approving) patch.status = 'active';
       op({ action: 'updateUser', userId: u.id, patch }); render();
@@ -3116,6 +3373,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Enter' && t.dataset && t.dataset.enter && ACT[t.dataset.enter]) { e.preventDefault(); ACT[t.dataset.enter](t); return; }
+  if (t.id === 'cmt' && MP.list.length && !$('#mpop').hidden) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); MP.i = (MP.i + (e.key === 'ArrowDown' ? 1 : MP.list.length - 1)) % MP.list.length; drawMentions(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(MP.i); return; }
+    if (e.key === 'Escape') { e.preventDefault(); $('#mpop').hidden = true; MP.list = []; return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey && t.dataset && t.dataset.enterSend && innerWidth >= 1024) { e.preventDefault(); ACT.sendComment(t); return; }
   if (e.key === 'Enter' && t.id === 'ttl') { e.preventDefault(); t.blur(); return; }
   if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role=button][data-act]')) { e.preventDefault(); t.click(); return; }
@@ -3124,7 +3386,7 @@ document.addEventListener('keydown', e => {
     if ($('#menu').innerHTML) { $('#menu').innerHTML = ''; return; }
     if (DLG) { closeDialog(); return; }
     if (S.addingCol) { S.addingCol = null; render(); return; }
-    if (S.taskId) { S.taskId = null; render({ soft: true }); }
+    if (S.taskId) { const cur = taskById(S.taskId); if (cur && cur.parentId && taskById(cur.parentId)) ACT.taskBack({ dataset: { id: cur.parentId } }); else { S.taskId = null; render({ soft: true }); } }
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); const q = $('#q'); if (q && q.offsetParent) q.focus(); else ACT.go({ dataset: { v: 'search' } }); }
 });
@@ -3134,6 +3396,7 @@ document.addEventListener('input', e => {
   if (t.dataset.input === 'search') { S.q = t.value.trim(); renderContent(); }
   if (t.dataset.input === 'search2') { S.q = t.value.trim(); const r = $('#results'); if (r) r.innerHTML = S.q ? searchResultsHtml(S.q, true) : ''; }
   if (t.classList.contains('ttl-edit') || t.id === 'cmt') autosize();
+  if (t.id === 'cmt') mentionCheck(t);
 });
 document.addEventListener('focusout', e => { if (e.target.id === 'addcol' && !e.target.value.trim()) setTimeout(() => { if (S.addingCol) { S.addingCol = null; render(); } }, 150); });
 function autosize() { $$('.ttl-edit, #cmt').forEach(t => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, t.id === 'cmt' ? 140 : 400) + 'px'; }); }
@@ -3147,7 +3410,8 @@ document.addEventListener('dragover', e => { const col = e.target.closest && e.t
 document.addEventListener('drop', e => {
   const col = e.target.closest && e.target.closest('[data-col]'); if (!col || !dragId) return; e.preventDefault();
   const t = taskById(dragId); const st = col.dataset.col; dragId = null; col.classList.remove('drop');
-  if (t && t.status !== st) saveTask({ id: t.id, status: st, order: Date.now() }, 'Moved to ' + STATUS[st].l);
+  const sg = t && stageList(projById(t.projectId)).find(s => s.id === st);
+  if (t && t.status !== st) saveTask({ id: t.id, status: st, order: Date.now() }, 'Moved to ' + (sg ? sg.name : ''));
 });
 
 /* Keep changes safe when the app is closed while they're still saving. */
