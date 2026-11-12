@@ -153,7 +153,7 @@ var TABLES = {
   users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams','access','members','managers'],
-  tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
+  tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
@@ -163,6 +163,29 @@ var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
   { id: 'review', name: 'In Review', color: 'purple' }, { id: 'followup', name: 'Follow Up', color: 'orange' },
   { id: 'done', name: 'Done', color: 'green' }];
+/* Repeating tasks: when one is completed, the next one is created with the next due date. */
+var REPEATS = ['daily', 'weekdays', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
+function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function addMonths(d, n) { var day = d.getDate(), r = new Date(d.getFullYear(), d.getMonth() + n, 1); r.setDate(Math.min(day, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate())); return r; }
+function stepDate(d, rep) {
+  var r = new Date(d.getTime());
+  if (rep === 'daily') r.setDate(r.getDate() + 1);
+  else if (rep === 'weekdays') { do { r.setDate(r.getDate() + 1); } while (r.getDay() === 0 || r.getDay() === 6); }
+  else if (rep === 'weekly') r.setDate(r.getDate() + 7);
+  else if (rep === 'biweekly') r.setDate(r.getDate() + 14);
+  else if (rep === 'monthly') r = addMonths(d, 1);
+  else if (rep === 'quarterly') r = addMonths(d, 3);
+  else if (rep === 'yearly') r = addMonths(d, 12);
+  return r;
+}
+function nextDue(due, rep, today) {
+  var t = today ? new Date(today + 'T00:00:00') : new Date(); t.setHours(0, 0, 0, 0);
+  var d = due ? new Date(due + 'T00:00:00') : new Date(t.getTime());
+  var n = stepDate(d, rep), guard = 0;
+  while (n < t && guard++ < 1000) n = stepDate(n, rep);
+  if (n <= t && !due) n = stepDate(t, rep);
+  return ymd(n);
+}
 function stagesOf(p) { return p && Array.isArray(p.stages) && p.stages.length ? p.stages : DEFAULT_STAGES; }
 var PRIORITIES = ['none','low','medium','high','urgent'];
 var PROJECT_STATUSES = ['on_track','at_risk','off_track','on_hold','complete'];
@@ -446,6 +469,7 @@ var ACTIONS = {
     if (t.status !== undefined) f.status = stageIds.indexOf(t.status) >= 0 ? t.status : stageIds[0];
     if (t.priority !== undefined) f.priority = PRIORITIES.indexOf(t.priority) >= 0 ? t.priority : 'none';
     if (t.due !== undefined) f.due = str(t.due, 10);
+    if (t.repeat !== undefined) f.repeat = REPEATS.indexOf(t.repeat) >= 0 ? t.repeat : '';
     if (t.order !== undefined) f.order = Number(t.order) || 0;
     if (t.projectId !== undefined) f.projectId = projectId || '';
     if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
@@ -458,8 +482,25 @@ var ACTIONS = {
       var after = DB.get('tasks', existing.id);
       var added = (f.assignees || []).filter(function (id) { return (existing.assignees || []).indexOf(id) < 0; });
       if (added.length) log(DB, u, teamId, 'assign', existing.id, 'assigned “' + after.title + '”', added);
-      if (f.status && f.status !== existing.status && f.status === 'done')
+      if (f.status && f.status !== existing.status && f.status === 'done') {
         log(DB, u, teamId, 'complete', existing.id, 'completed “' + after.title + '”', [after.createdBy].concat(after.assignees || []));
+        if (after.repeat && !after.nextId) {
+          var nid = cleanId(t.spawnId, 't');
+          if (!DB.get('tasks', nid)) {
+            var nx = { id: nid, teamId: after.teamId, projectId: after.projectId || '', parentId: after.parentId || '', title: after.title, notes: after.notes || '',
+              status: stageIds[0], priority: after.priority || 'none', assignees: after.assignees || [], due: nextDue(after.due, after.repeat, t.today),
+              createdBy: after.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '', order: Date.now(), attachments: [], repeat: after.repeat, nextId: '' };
+            DB.insert('tasks', nx);
+            DB.all('tasks').filter(function (x) { return x.parentId === after.id; }).forEach(function (s, i) {
+              DB.insert('tasks', { id: uid('t'), teamId: s.teamId, projectId: s.projectId || '', parentId: nid, title: s.title, notes: s.notes || '', status: stageIds[0],
+                priority: s.priority || 'none', assignees: s.assignees || [], due: '', createdBy: s.createdBy, createdAt: nowISO(), updatedAt: nowISO(), completedAt: '',
+                order: Date.now() + i, attachments: [], repeat: '', nextId: '' });
+            });
+          }
+          DB.update('tasks', after.id, { nextId: nid });
+          after = DB.get('tasks', after.id);
+        }
+      }
       return after;
     }
     if (!f.title) fail('A task needs a title.');
