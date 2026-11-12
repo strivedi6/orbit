@@ -501,6 +501,18 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .back-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .back-pill:active{transform:scale(.95)}
 
+/* ---------- round 6 ---------- */
+.sb-grp{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;padding:10px 12px 2px;text-transform:uppercase}
+.trow.more-done{color:var(--text-2);font-size:14px;align-items:center;gap:8px;width:100%;text-align:left;font-weight:500}
+.trow.more-done:hover{color:var(--accent)}
+.done-banner{background:color-mix(in srgb,var(--green) 12%,var(--surface));margin:0 0 14px}
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 4px 12px}
+.pill.flt{height:34px;background:var(--surface);color:var(--text);font-size:14px;padding:0 12px;gap:6px}
+.pill.flt.on{background:var(--accent-soft);color:var(--accent)}
+.cedit{width:100%;border:0;outline:none;background:var(--fill-4);border-radius:12px;padding:8px 10px;margin-top:4px;font-size:16px;line-height:1.35;resize:vertical;color:var(--text);min-height:60px}
+.cedit-acts{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+.section-title .link{font-size:15px;font-weight:400;color:var(--accent)}
+
 /* ---------- motion helpers ---------- */
 .reveal{opacity:0;transform:translateY(22px) scale(.985);transition:opacity .5s var(--ease),transform .75s cubic-bezier(.34,1.2,.64,1)}
 .reveal.in{opacity:1;transform:none}
@@ -686,12 +698,12 @@ var TABLES = {
   teams:      ['id','propertyCode','name','color','createdAt'],
   users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
-  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams'],
+  projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams','access','members','managers'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments'],
-  comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions'],
+  comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, shareTeams: 1, mentions: 1 };
+var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -778,11 +790,24 @@ function canSeeTeam(u, teamId) { return isAdmin(u) || userTeams(u).indexOf(teamI
 function canManageTeam(u, teamId) { return isAdmin(u) || (u.role === 'head' && userTeams(u).indexOf(teamId) >= 0); }
 /* A project belongs to one team and can be shared with teams at other properties. */
 function projTeams(p) { return [p.teamId].concat(Array.isArray(p.shareTeams) ? p.shareTeams : []); }
-function canSeeProject(u, p) { if (isAdmin(u)) return true; var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; }); }
+/* Projects are open to their teams, or limited to chosen people. Managers edit the project, its stages and can archive it. */
+function listOf(v) { return Array.isArray(v) ? v : []; }
+function isProjectManager(u, p) { return p.createdBy === u.id || listOf(p.managers).indexOf(u.id) >= 0; }
+function canSeeProject(u, p) {
+  if (isAdmin(u) || isProjectManager(u, p)) return true;
+  if (p.access === 'private') return listOf(p.members).indexOf(u.id) >= 0;
+  var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; });
+}
+function canManageProject(u, p) { return isAdmin(u) || isProjectManager(u, p) || projTeams(p).some(function (t) { return canManageTeam(u, t); }); }
+function projectPeople(DB, p) {
+  if (p.access === 'private') return [p.createdBy].concat(listOf(p.members), listOf(p.managers));
+  var allowed = projTeams(p);
+  return DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).some(function (t) { return allowed.indexOf(t) >= 0; }); })
+    .map(function (x) { return x.id; }).concat(listOf(p.managers));
+}
 function canSeeTask(DB, u, t) {
-  if (canSeeTeam(u, t.teamId)) return true;
   var p = t.projectId ? DB.get('projects', t.projectId) : null;
-  return !!(p && canSeeProject(u, p));
+  return p ? canSeeProject(u, p) : canSeeTeam(u, t.teamId);
 }
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
@@ -872,7 +897,7 @@ var ACTIONS = {
     var pIds = {}, tset = {};
     mine.forEach(function (t) { tset[t] = 1; });
     projects.forEach(function (p) { pIds[p.id] = 1; projTeams(p).forEach(function (t) { tset[t] = 1; }); });
-    var tasks = DB.all('tasks').filter(function (t) { return admin || mine.indexOf(t.teamId) >= 0 || (t.projectId && pIds[t.projectId]); });
+    var tasks = DB.all('tasks').filter(function (t) { return admin || (t.projectId ? pIds[t.projectId] : mine.indexOf(t.teamId) >= 0); });
     var tIds = {}; tasks.forEach(function (t) { tIds[t.id] = 1; });
     var users = DB.all('users').filter(function (x) {
       if (admin) return true;
@@ -908,9 +933,14 @@ var ACTIONS = {
         if (!id || id === home || seen[id] || !DB.get('teams', id)) return false; seen[id] = 1; return true;
       });
     };
+    var people = function (list) { return listOf(list).filter(function (id, i, a) { return a.indexOf(id) === i && DB.get('users', id); }); };
+    if (p.access !== undefined) fields.access = p.access === 'private' ? 'private' : 'team';
+    if (p.members !== undefined) fields.members = people(p.members);
+    if (p.managers !== undefined) fields.managers = people(p.managers);
     var existing = p.id ? DB.get('projects', p.id) : null;
     if (existing) {
-      if (!canSeeProject(u, existing)) fail('You can’t edit this project.');
+      if (!canSeeProject(u, existing)) fail('That project no longer exists.');
+      if (!canManageProject(u, existing)) fail('Only this project’s managers or a department head can change it.');
       if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId);
       DB.update('projects', existing.id, fields);
       return DB.get('projects', existing.id);
@@ -918,7 +948,7 @@ var ACTIONS = {
     var teamId = p.teamId && canSeeTeam(u, p.teamId) ? p.teamId : u.teamId;
     if (!DB.get('teams', teamId)) fail('Choose a team for this project.');
     fields.shareTeams = shares(teamId);
-    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO(), stages: [] }, fields);
+    var obj = Object.assign({ id: cleanId(p.id, 'p'), teamId: teamId, createdBy: u.id, createdAt: nowISO(), stages: [], access: 'team', members: [], managers: [] }, fields);
     if (!obj.ownerId) obj.ownerId = u.id;
     DB.insert('projects', obj);
     log(DB, u, teamId, 'project', obj.id, 'created the project ' + obj.name, []);
@@ -929,7 +959,7 @@ var ACTIONS = {
     var u = auth(DB, r.token), p = DB.get('projects', r.id);
     if (!p) return { ok: true };
     if (!canSeeProject(u, p)) fail('That project no longer exists.');
-    if (!(canManageTeam(u, p.teamId) || p.createdBy === u.id)) fail('Only the person who created this project or a department head can delete it.');
+    if (!canManageProject(u, p)) fail('Only this project’s managers or a department head can delete it.');
     DB.all('tasks').filter(function (t) { return t.projectId === p.id; }).forEach(function (t) {
       DB.all('comments').filter(function (c) { return c.taskId === t.id; }).forEach(function (c) { DB.remove('comments', c.id); });
       DB.remove('tasks', t.id);
@@ -952,8 +982,7 @@ var ACTIONS = {
     var teamId = project ? project.teamId : (parent ? parent.teamId : (existing ? existing.teamId : u.teamId));
     if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
     if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
-    var allowedTeams = project ? projTeams(project) : [teamId];
-    var team = DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).some(function (tt) { return allowedTeams.indexOf(tt) >= 0; }); }).map(function (x) { return x.id; });
+    var team = project ? projectPeople(DB, project) : DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).indexOf(teamId) >= 0; }).map(function (x) { return x.id; });
     var stageIds = stagesOf(project).map(function (s) { return s.id; });
     var admins = DB.all('users').filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; });
 
@@ -1032,6 +1061,15 @@ var ACTIONS = {
     if (i >= 0) list.splice(i, 1); else list.push(u.id);
     if (list.length) re[r.emoji] = list; else delete re[r.emoji];
     DB.update('comments', c.id, { reactions: re });
+    return DB.get('comments', c.id);
+  },
+
+  editComment: function (DB, r) {
+    var u = auth(DB, r.token), c = DB.get('comments', r.id), text = str(r.text, 4000);
+    if (!c) fail('That comment no longer exists.');
+    if (c.userId !== u.id) fail('You can only edit your own comments.');
+    if (!text) fail('A comment can’t be empty. Delete it instead.');
+    DB.update('comments', c.id, { text: text, editedAt: nowISO() });
     return DB.get('comments', c.id);
   },
 
@@ -1159,7 +1197,7 @@ var ACTIONS = {
   saveStages: function (DB, r) {
     var u = auth(DB, r.token), p = DB.get('projects', r.projectId);
     if (!p || !canSeeProject(u, p)) fail('That project no longer exists.');
-    if (!projTeams(p).some(function (t) { return canManageTeam(u, t); })) fail('Only the main admin or a department head can change stages.');
+    if (!canManageProject(u, p)) fail('Only this project’s managers, a department head or the main admin can change stages.');
     var out = [], seen = {}, done = null;
     (Array.isArray(r.stages) ? r.stages : []).slice(0, 12).forEach(function (s) {
       var name = str(s && s.name, 30); if (!name) return;
@@ -1520,7 +1558,7 @@ const S = {
   data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
   scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
   collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', ''),
-  welcomed: false, expanded: new Set(), replyTo: null
+  welcomed: false, expanded: new Set(), replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
 };
 const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
 const me = () => D().me || Session.user || {};
@@ -1541,8 +1579,29 @@ const taskInScope = t => { const p = projById(t.projectId); return p ? projInSco
 const userInScope = u => S.scope === 'all' || userTeamsC(u).includes(S.scope);
 const scopeTeamId = () => S.scope !== 'all' && myTeamIds().includes(S.scope) ? S.scope : me().teamId;
 const canManage = teamId => isAdminU() || (me().role === 'head' && myTeamIds().includes(teamId));
-const canEditStages = p => p && projTeamsC(p).some(canManage);
-const peopleFor = teamIds => D().users.filter(u => u.status === 'active' && (u.role === 'admin' || userTeamsC(u).some(t => teamIds.includes(t))));
+/* The main admin's own account stays out of everyone else's people lists. */
+const visibleUser = u => !!u && (isAdminU() || u.role !== 'admin');
+const isProjMgr = p => p.createdBy === me().id || (p.managers || []).includes(me().id);
+const canManageProj = p => !!p && (isAdminU() || isProjMgr(p) || projTeamsC(p).some(canManage));
+const canEditStages = canManageProj;
+const peopleFor = teamIds => D().users.filter(u => u.status === 'active' && visibleUser(u) && (userTeamsC(u).some(t => teamIds.includes(t)) || (isAdminU() && u.role === 'admin')));
+function projPeople(p) {
+  if (!p) return peopleFor([scopeTeamId()]);
+  const ids = p.access === 'private' ? [p.createdBy, ...(p.members || []), ...(p.managers || [])] : null;
+  const base = ids ? D().users.filter(u => ids.includes(u.id) && u.status === 'active' && visibleUser(u)) : peopleFor(projTeamsC(p));
+  (p.managers || []).forEach(id => { const u = userById(id); if (u && visibleUser(u) && !base.includes(u)) base.push(u); });
+  return base;
+}
+/* Which property a project belongs to; projects shared across properties go under Cluster. */
+const projCodes = p => [...new Set(projTeamsC(p).map(id => (teamById(id) || {}).propertyCode).filter(Boolean))];
+const projGroup = p => { const c = projCodes(p); return c.length > 1 ? 'Cluster' : (c[0] || ''); };
+const myCodes = () => [...new Set(myTeamIds().map(id => (teamById(id) || {}).propertyCode).filter(Boolean))];
+const multiProp = () => myCodes().length > 1;
+function groupProjects(list) {
+  const order = [...D().properties.map(p => p.code), 'Cluster'], g = {};
+  list.forEach(p => { const k = projGroup(p); (g[k] = g[k] || []).push(p); });
+  return order.filter(k => g[k]).map(k => [k, g[k]]);
+}
 const stageList = p => stagesOf(p);
 function stageOf(t) { const l = stagesOf(projById(t.projectId)); const s = l.find(x => x.id === t.status) || l[0]; return { id: s.id, l: s.name, c: s.color }; }
 const projects = () => D().projects.filter(p => projInScope(p) && !p.archived).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
@@ -1634,7 +1693,7 @@ const Outbox = {
       const op = batch[i], d = r.data;
       if (op.action === 'saveTask') upsert('tasks', d);
       else if (op.action === 'saveProject' || op.action === 'saveStages') upsert('projects', d);
-      else if (op.action === 'addComment' || op.action === 'reactComment') upsert('comments', d);
+      else if (op.action === 'addComment' || op.action === 'reactComment' || op.action === 'editComment') upsert('comments', d);
       else if (op.action === 'updateUser') { upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
       else if (op.action === 'updateProfile') { S.data.me = Object.assign({}, me(), d); upsert('users', Object.assign({}, userById(d.id) || {}, d)); keepPhoto(d); }
     });
@@ -1687,6 +1746,7 @@ function applyLocal(o) {
       D().comments.push({ id: o.id, teamId: t ? t.teamId : '', taskId: o.taskId, userId: me().id, text: o.text, createdAt: now, parentId: o.parentId || '', reactions: {} }); break;
     }
     case 'deleteComment': S.data.comments = D().comments.filter(c => c.id !== o.id && c.parentId !== o.id); break;
+    case 'editComment': { const c = D().comments.find(x => x.id === o.id); if (c) { c.text = o.text; c.editedAt = now; } break; }
     case 'reactComment': {
       const c = D().comments.find(x => x.id === o.id); if (!c) break;
       const re = c.reactions && !Array.isArray(c.reactions) ? c.reactions : {}; const l = re[o.emoji] || [], i = l.indexOf(me().id);
@@ -1837,7 +1897,7 @@ function sidebarHtml() {
   const codes = [...new Set(myTeamIds().map(id => (teamById(id) || {}).propertyCode).filter(Boolean))];
   const cluster = !isAdminU() && S.scope === 'all' && codes.length > 1;
   return `<nav class="sidebar glass" aria-label="Sidebar">
-    <div class="sb-head">${plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${CONFIG.APP_NAME} · ${esc(isAdminU() ? 'Main Admin' : cluster ? codes.join(' · ') : teamLabel(teamById(m.teamId)))}</div></div></div>
+    <div class="sb-head">${cluster ? '' : plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${esc(cluster ? codes.join(' · ') : CONFIG.APP_NAME + ' · ' + (isAdminU() ? 'Main Admin' : teamLabel(teamById(m.teamId))))}</div></div></div>
     ${multiScope() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
     <div class="sb-nav">
       ${nav('home', 'home', 'Home')}
@@ -1847,7 +1907,9 @@ function sidebarHtml() {
     </div>
     <div class="sb-sec"><span>Projects</span><button class="circle sm" style="width:26px;height:26px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
     <div class="sb-nav">
-      ${projects().map(p => `<button class="sb-item ${S.view === 'project' && S.projectId === p.id ? 'on' : ''}" data-act="openProject" data-id="${p.id}">${pdot(p)}<span class="lbl">${esc(p.name)}</span><span class="n tnum">${topTasks(p.id).filter(t => !isDone(t)).length || ''}</span></button>`).join('')}
+      ${(() => { const item = p => `<button class="sb-item ${S.view === 'project' && S.projectId === p.id ? 'on' : ''}" data-act="openProject" data-id="${p.id}">${pdot(p)}<span class="lbl">${esc(p.name)}</span><span class="n tnum">${topTasks(p.id).filter(t => !isDone(t)).length || ''}</span></button>`;
+        if (!multiProp()) return projects().map(item).join('');
+        return groupProjects(projects()).map(([k, l]) => `<div class="sb-grp">${esc(k)}</div>${l.map(item).join('')}`).join(''); })()}
       ${nav('projects', 'folder', 'All Projects')}
     </div>
     <div class="sb-foot">
@@ -1972,7 +2034,8 @@ function taskRow(t, opt = {}) {
   const pending = opt.pend && opt.pend.has(t.id);
   const open = opt.expand && subs.length && S.expanded.has(t.id);
   const twist = opt.expand ? (subs.length ? `<button class="twist ${open ? 'open' : ''}" data-act="twist" data-id="${t.id}" aria-label="${open ? 'Hide' : 'Show'} subtasks" aria-expanded="${open ? 'true' : 'false'}">${ic('chevR', 's')}</button>` : '<span class="twist"></span>') : '';
-  const nested = open ? subs.map(s => taskRow(s, { pend: opt.pend, nested: true })).join('') : '';
+  const shownSubs = S.showDoneSubs ? subs : subs.filter(s => !isDone(s));
+  const nested = open ? shownSubs.map(s => taskRow(s, { pend: opt.pend, nested: true })).join('') + (sd && !S.showDoneSubs ? `<button class="trow nested more-done" data-act="toggleDoneSubs">${ic('done', 's')}Show ${sd} completed</button>` : '') : '';
   return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''} ${opt.nested ? 'nested' : ''} ${opt.expand ? 'has-twist' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
     ${twist}<button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
     <div class="body"><div class="ttl">${esc(t.title)}</div>
@@ -2013,9 +2076,8 @@ function projectsHtml() {
   const archived = D().projects.filter(p => projInScope(p) && p.archived);
   let body;
   if (!list.length) body = `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Projects group your team’s tasks, deadlines and files.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`;
-  else if (multiScope() && S.scope === 'all') {
-    const byTeam = {}; list.forEach(p => (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p));
-    body = Object.keys(byTeam).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${byTeam[tid].length}</span></div><div class="pgrid">${byTeam[tid].map(projectCard).join('')}</div>`).join('');
+  else if (multiProp()) {
+    body = groupProjects(list).map(([k, l]) => `<div class="section-title">${esc(k)} <span class="n tnum">${l.length}</span>${k === 'Cluster' ? '<span class="sub" style="font-weight:400;font-size:13px">Shared across properties</span>' : ''}</div><div class="pgrid">${l.map(projectCard).join('')}</div>`).join('');
   } else body = `<div class="pgrid">${list.map(projectCard).join('')}</div>`;
   return `<h1 class="large-title">Projects</h1><p class="lt-sub">${list.length} active ${list.length === 1 ? 'project' : 'projects'}</p>${scopePill()}${body}
     ${archived.length ? `<div class="section-title">Archived</div><div class="menu">${archived.map(p => `<button class="li" data-act="openProject" data-id="${p.id}" style="--inset:44px">${pdot(p)}<span class="lbl">${esc(p.name)}</span><span class="chev">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}`;
@@ -2027,7 +2089,9 @@ function projectHtml() {
   const people = [...new Set(topTasks(p.id).flatMap(t => t.assignees || []))];
   const modes = [['list', 'list', 'List'], ['board', 'board', 'Board'], ['calendar', 'cal', 'Calendar']];
   const body = S.mode === 'board' ? boardHtml(p) : S.mode === 'calendar' ? calendarHtml(p) : listHtml(p);
+  const finished = pr.total > 0 && pr.done === pr.total && !p.archived && canManageProj(p);
   return `<div class="phead">${pdot(p, 'lg')}<div style="min-width:0;flex:1"><h1>${esc(p.name)}</h1>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}</div></div>
+    ${finished ? `<div class="banner done-banner"><span class="ico" style="background:var(--green);border-radius:50%">${ic('check')}</span><div style="flex:1;min-width:0"><div class="t">All ${pr.total} tasks are done</div><div class="d">Archive the project to move it out of your project list. You can restore it any time.</div></div><button class="btn primary sm" data-act="archiveProject" data-id="${p.id}">Archive</button></div>` : ''}
     <div class="controls">
       <button data-act="projStatus" aria-label="Project status">${pillHtml(ps)}</button>
       <span class="pill tnum">${pr.pct}% · ${pr.done}/${pr.total}</span>
@@ -2091,8 +2155,10 @@ function calendarHtml(p) {
 function teamHtml() {
   const pend = pendingUsers(), tab = S.teamTab;
   const order = { admin: 0, head: 1, member: 2 };
-  const visTeams = myTeamIds().filter(inScope);
-  const users = D().users.filter(u => u.status !== 'pending' && userTeamsC(u).some(t => visTeams.includes(t))).sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+  const allTeams = myTeamIds().filter(inScope);
+  const visTeams = allTeams.filter(id => { const t = teamById(id) || {}; return (S.teamProp === 'all' || t.propertyCode === S.teamProp) && (S.teamDept === 'all' || t.name === S.teamDept); });
+  const showFilters = (isAdminU() || me().role === 'head') && allTeams.length > 1;
+  const users = D().users.filter(u => u.status !== 'pending' && visibleUser(u) && userTeamsC(u).some(t => visTeams.includes(t))).sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
   const groups = {}; visTeams.forEach(tid => { const l = users.filter(u => userTeamsC(u).includes(tid)); if (l.length) groups[tid] = l; });
   const canApprove = isAdminU() || me().role === 'head';
   const myTeam = teamById(me().teamId);
@@ -2103,14 +2169,18 @@ function teamHtml() {
       <p class="section-foot">Approving lets them sign in and see this team’s projects. You set their role and job title when you approve.</p>`
       : `<div class="menu" style="margin-top:14px">${emptyState('personPlus', 'green', 'No requests', 'When someone signs up for your team, you’ll approve them here.')}</div>`;
   } else {
-    body = Object.keys(groups).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${groups[tid].length}</span></div>
+    body = (Object.keys(groups).length ? '' : `<div class="menu" style="margin-top:14px">${emptyState('people', 'gray', 'Nobody here', 'No one matches these filters.')}</div>`) + Object.keys(groups).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${groups[tid].length}</span></div>
       <div class="menu">${groups[tid].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div>${(u.teamIds || []).length ? '<span class="chip role-member">Cluster</span>' : ''}${roleChip(u)}<span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>`).join('');
     body += `<div class="section-title">Invite People</div><div class="menu"><div class="li" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--accent)">${ic('key')}</span>
       <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="sub" style="font-size:15px;margin-top:2px;letter-spacing:-.23px">New people enter property code <b class="tnum">${esc(me().propertyCode)}</b>, choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
   }
   const addBtn = canApprove ? `<button class="btn primary sm" data-act="addMember" style="margin:0 4px 0 auto">${ic('personPlus', 's')}Add Member</button>` : '';
   return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'Everyone across all properties' : 'Everyone in your teams') : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
-    ${canApprove ? `<div class="seg" id="seg-team"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}${body}`;
+    ${showFilters && tab === 'members' ? `<div class="filters">
+      <button class="pill flt ${S.teamProp !== 'all' ? 'on' : ''}" data-act="teamFilter" data-k="prop">${ic('building', 's')}${esc(S.teamProp === 'all' ? 'All Properties' : S.teamProp)}${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.teamDept !== 'all' ? 'on' : ''}" data-act="teamFilter" data-k="dept">${ic('people', 's')}${esc(S.teamDept === 'all' ? 'All Departments' : S.teamDept)}${ic('chevD', 'xs')}</button>
+      ${S.teamProp !== 'all' || S.teamDept !== 'all' ? '<button class="link" data-act="teamFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}</div>` : ''}
+    ${canApprove ? `<div class="seg" id="seg-team" style="margin-top:4px"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}${body}`;
 }
 
 function actRow(a) {
@@ -2133,7 +2203,7 @@ function searchResultsHtml(q, inner) {
   const s = q.toLowerCase();
   const tasks = D().tasks.filter(t => taskInScope(t) && ((t.title || '').toLowerCase().includes(s) || (t.notes || '').toLowerCase().includes(s))).slice(0, 40);
   const projs = D().projects.filter(p => projInScope(p) && p.name.toLowerCase().includes(s));
-  const people = D().users.filter(u => userInScope(u) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
+  const people = D().users.filter(u => visibleUser(u) && userInScope(u) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
   const none = !tasks.length && !projs.length && !people.length;
   return `${inner ? '' : `<h1 class="large-title">Results for “${esc(q)}”</h1>`}
     ${none ? `<div class="menu" style="margin-top:14px">${emptyState('search', 'gray', 'No results', 'Try a different word.')}</div>` : ''}
@@ -2209,8 +2279,6 @@ function inspectorHtml(t) {
       <button class="circle glass" data-act="taskMenu" data-id="${t.id}" aria-label="More options">${ic('more')}</button>
     </div>
     <div class="insp-scroll" id="iscroll">
-      <div class="crumb">${p ? `<button data-act="openProject" data-id="${p.id}">${pdot(p)}${esc(p.name)}</button>` : '<span>No project</span>'}
-        ${parent ? `${ic('chevR', 'xs')}<button data-act="openTask" data-id="${parent.id}">${esc(parent.title)}</button>` : ''}</div>
       <textarea class="ttl-edit" id="ttl" rows="1" data-change="saveTitle" data-id="${t.id}" aria-label="Task title">${esc(t.title)}</textarea>
       <div class="menu" style="margin-top:12px">
         <button class="li" data-act="pickAssignees" data-id="${t.id}"><span class="ico" style="background:var(--orange)">${ic('person')}</span><span class="lbl">Assigned to</span>
@@ -2224,8 +2292,8 @@ function inspectorHtml(t) {
       </div>
       <div class="section-title">Notes</div>
       <textarea class="notes" id="notes" placeholder="Add details, links or instructions" data-change="saveNotes" data-id="${t.id}" aria-label="Notes">${esc(t.notes || '')}</textarea>
-      <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span></div>
-      <div class="menu">${subs.map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
+      <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span><span class="sp"></span>${subs.some(isDone) ? `<button class="link" data-act="toggleDoneSubs">${S.showDoneSubs ? 'Hide completed' : 'Show completed (' + subs.filter(isDone).length + ')'}</button>` : ''}</div>
+      <div class="menu">${subs.filter(s => S.showDoneSubs || !isDone(s)).map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
         <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${pend.has(s.id) ? '<span class="pending-dot"></span>' : ''}${dueHtml(s) ? `<span style="font-size:13px" class="sub">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('')}
         <div class="addrow">${ic('plus')}<input id="addsub" placeholder="Add subtask" data-enter="addSub" data-id="${t.id}" aria-label="Add subtask"></div></div>
       <div class="section-title">Files<span class="sp"></span>
@@ -2239,7 +2307,7 @@ ${S.replyTo && comments.find(c => c.id === S.replyTo) ? replyBar(comments.find(c
       <button class="circle tint" data-act="sendComment" data-id="${t.id}" aria-label="Send comment">${ic('up')}</button></div>`;
 }
 /* @mentions: people who can see this task. */
-function mentionable(t) { const p = projById(t.projectId); return peopleFor(p ? projTeamsC(p) : [t.teamId]).filter(u => u.id !== me().id); }
+function mentionable(t) { const p = projById(t.projectId); return (p ? projPeople(p) : peopleFor([t.teamId])).filter(u => u.id !== me().id); }
 function richText(text) {
   let h = esc(text);
   const us = D().users.filter(u => u.name).slice().sort((a, b) => b.name.length - a.name.length);
@@ -2292,9 +2360,11 @@ function threadHtml(t, comments, pend) {
       return `<button class="rx ${re[k].includes(me().id) ? 'on' : ''}" data-act="react" data-id="${c.id}" data-e="${k}" title="${esc(who)}">${k}<span class="tnum">${re[k].length}</span></button>`;
     }).join('');
     return `<div class="cmt ${mine ? 'mine' : ''} ${reply ? 'reply' : ''} ${pend.has(c.id) ? 'pending' : ''}" data-cid="${c.id}">${av(u, reply ? 'sm' : '')}<div style="flex:1;min-width:0">
-      <div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}</time></div><div class="tx">${richText(c.text)}</div></div>
+      <div class="bubble"><div class="who">${esc(u ? u.name : 'Former member')}<time title="${fullTime(c.createdAt)}">${pend.has(c.id) ? 'Sending…' : ago(c.createdAt)}${c.editedAt ? ' · edited' : ''}</time></div>
+        ${S.editingC === c.id ? `<textarea class="cedit" id="cedit" rows="2" aria-label="Edit comment">${esc(c.text)}</textarea><div class="cedit-acts"><button class="btn plain" data-act="cancelEditC">Cancel</button><button class="btn primary sm" data-act="saveEditC" data-id="${c.id}">Save</button></div>` : `<div class="tx">${richText(c.text)}</div>`}</div>
       <div class="cmt-acts">${chips}<button class="cmt-a" data-act="reactMenu" data-id="${c.id}" aria-label="React">${ic('smile', 's')}</button>
         <button class="cmt-a" data-act="replyTo" data-id="${reply ? c.parentId : c.id}">Reply</button>
+        ${mine ? `<button class="cmt-a" data-act="editC" data-id="${c.id}">Edit</button>` : ''}
         ${mine || isAdminU() ? `<button class="cmt-a del" data-act="delComment" data-id="${c.id}">Delete</button>` : ''}</div></div></div>`;
   };
   return top.map(c => one(c, false) + comments.filter(r => r.parentId === c.id).map(r => one(r, true)).join('')).join('');
@@ -2469,6 +2539,34 @@ const ACT = {
   closeTask() { S.taskId = null; S.replyTo = null; render({ soft: true }); },
   taskBack(el) { S.taskId = el.dataset.id; S.replyTo = null; render(); const i = $('#insp'); if (i && i.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) $$('.insp-scroll > *', i).forEach((x, k) => x.animate([{ opacity: 0, transform: 'translateX(-24px)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: k * 18, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'backwards' })); },
   editStages() { stagesDialog(projById(S.projectId)); },
+  toggleDoneSubs() { S.showDoneSubs = !S.showDoneSubs; render({ soft: true }); },
+  editC(el) { S.editingC = el.dataset.id; renderInsp(); setTimeout(() => { const b = $('#cedit'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 30); },
+  cancelEditC() { S.editingC = null; renderInsp(); },
+  saveEditC(el) {
+    const b = $('#cedit'), v = b ? b.value.trim() : ''; if (!v) { toast('A comment can’t be empty. Delete it instead.', true); return; }
+    const c = D().comments.find(x => x.id === el.dataset.id); S.editingC = null;
+    if (c && c.text !== v) op({ action: 'editComment', id: c.id, text: v });
+    renderInsp();
+  },
+  archiveProject(el) {
+    const p = projById(el.dataset.id); if (!p) return;
+    op({ action: 'saveProject', project: Object.assign({}, p, { archived: true, status: 'complete' }) });
+    nav(() => { S.view = 'projects'; }, 'pop'); toast('“' + p.name + '” archived');
+  },
+  teamFilter(el) {
+    const k = el.dataset.k;
+    if (k === 'clear') { S.teamProp = 'all'; S.teamDept = 'all'; render(); return; }
+    const teams = myTeamIds().filter(inScope).map(teamById).filter(Boolean);
+    if (k === 'prop') {
+      const codes = [...new Set(teams.map(t => t.propertyCode))];
+      openMenu(el, [{ label: 'All Properties', checked: S.teamProp === 'all', onClick: () => { S.teamProp = 'all'; render(); } }, '-',
+        ...codes.map(c => { const p = propByCode(c); return { html: `<span style="display:inline-flex;align-items:center;gap:8px">${plogo(p || { code: c })}${esc(c)}</span>`, checked: S.teamProp === c, onClick: () => { S.teamProp = c; render(); } }; })]);
+    } else {
+      const names = [...new Set(teams.filter(t => S.teamProp === 'all' || t.propertyCode === S.teamProp).map(t => t.name))].sort();
+      openMenu(el, [{ label: 'All Departments', checked: S.teamDept === 'all', onClick: () => { S.teamDept = 'all'; render(); } }, '-',
+        ...names.map(n => ({ label: n, checked: S.teamDept === n, onClick: () => { S.teamDept = n; render(); } }))]);
+    }
+  },
   scopeMenu(el) {
     const items = [{ label: isAdminU() ? 'All Teams' : 'All My Teams', checked: S.scope === 'all', onClick: () => { S.scope = 'all'; store.set('orbit_scope', 'all'); nav(() => { }, 'fade'); } }];
     D().properties.forEach(p => {
@@ -2510,7 +2608,7 @@ const ACT = {
   clearDue(el) { saveTask({ id: el.dataset.id, due: '' }); },
   pickAssignees(el) {
     const t = taskById(el.dataset.id);
-    const tp = projById(t.projectId), people = peopleFor(tp ? projTeamsC(tp) : [t.teamId]);
+    const tp = projById(t.projectId), people = tp ? projPeople(tp) : peopleFor([t.teamId]);
     const sel = new Set(t.assignees || []);
     openDialog({ title: 'Assign To', ok: 'Done', body: `<p class="lt-sub" style="margin:4px 4px 12px">Choose people from ${esc(teamLabel(teamById(t.teamId)))}.</p>
       <div class="menu">${people.map(u => `<button class="li ${sel.has(u.id) ? 'on' : ''}" data-pick="${u.id}">${av(u)}<span class="lbl"><div style="font-weight:600">${esc(u.name)}</div><div class="sub" style="font-size:13px;letter-spacing:-.08px">${esc(u.jobTitle || ROLE[u.role])}</div></span><span class="check ${sel.has(u.id) ? 'on' : ''}">${ic('check')}</span></button>`).join('')}</div>`,
@@ -2598,7 +2696,7 @@ const ACT = {
       </div>`,
       onOpen: root => {
         const fill = () => { const p = projById($('#nt-proj', root).value);
-          const people = peopleFor(p ? projTeamsC(p) : [scopeTeamId()]);
+          const people = projPeople(p);
           $('#nt-who', root).innerHTML = `<option value="">Nobody</option>` + people.map(u => `<option value="${u.id}" ${u.id === me().id ? 'selected' : ''}>${esc(u.name)}${u.id === me().id ? ' (Me)' : ''}</option>`).join(''); };
         fill(); $('#nt-proj', root).onchange = fill;
         $('#nt-title', root).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-dact="ok"]', root).click(); } });
@@ -2616,13 +2714,14 @@ const ACT = {
   projStatus(el) { const p = projById(S.projectId); openMenu(el, Object.keys(PSTATUS).map(k => ({ html: pillHtml(PSTATUS[k]), checked: p.status === k, onClick: () => { op({ action: 'saveProject', project: Object.assign({}, p, { status: k }) }); render(); } }))); },
   projMenu(el) {
     const p = projById(S.projectId);
+    if (!canManageProj(p)) { openMenu(el, [{ label: 'Only this project’s managers can change it', icon: ic('lock', 's'), onClick: () => { } }]); return; }
     const items = [{ label: 'Edit Project', icon: ic('pencil', 's'), onClick: () => projectDialog(p) },
-      ...(canEditStages(p) ? [{ label: 'Edit Stages', icon: ic('board', 's'), onClick: () => stagesDialog(p) }] : []),
-      { label: p.archived ? 'Restore Project' : 'Archive Project', icon: ic('archive', 's'), onClick: () => { op({ action: 'saveProject', project: Object.assign({}, p, { archived: !p.archived }) }); render(); toast(p.archived ? 'Project archived' : 'Project restored'); } }];
-    if (p.createdBy === me().id || canManage(p.teamId)) items.push('-', { label: 'Delete Project', danger: true, icon: ic('trash', 's'), onClick: async () => {
-      if (!await confirmBox({ title: 'Delete “' + p.name + '”?', msg: 'All of its tasks, comments and file links will be removed for everyone. This can’t be undone.', ok: 'Delete', danger: true })) return;
-      op({ action: 'deleteProject', id: p.id }); nav(() => { S.view = 'projects'; }, 'pop'); toast('Project deleted');
-    } });
+      { label: 'Edit Stages', icon: ic('board', 's'), onClick: () => stagesDialog(p) },
+      { label: p.archived ? 'Restore Project' : 'Archive Project', icon: ic('archive', 's'), onClick: () => { op({ action: 'saveProject', project: Object.assign({}, p, { archived: !p.archived }) }); render(); toast(p.archived ? 'Project archived' : 'Project restored'); } },
+      '-', { label: 'Delete Project', danger: true, icon: ic('trash', 's'), onClick: async () => {
+        if (!await confirmBox({ title: 'Delete “' + p.name + '”?', msg: 'All of its tasks, comments and file links will be removed for everyone. This can’t be undone.', ok: 'Delete', danger: true })) return;
+        op({ action: 'deleteProject', id: p.id }); nav(() => { S.view = 'projects'; }, 'pop'); toast('Project deleted');
+      } }];
     openMenu(el, items);
   },
   openActivity(el) {
@@ -2733,7 +2832,11 @@ function projectDialog(p) {
       <div class="li"><span class="ico" style="background:var(--green)">${ic('flag')}</span><span class="lbl">Status</span><select class="sel" id="pj-status" aria-label="Status">${Object.keys(PSTATUS).map(k => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${PSTATUS[k].l}</option>`).join('')}</select></div>
       <div class="li"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Deadline</span><input type="date" class="date" id="pj-due" value="${esc(p.due || '')}" aria-label="Deadline"></div>
     </div>
-    <div id="pj-share-box"></div>`,
+    <div id="pj-share-box"></div>
+    <div class="section-title">Who Can See and Manage</div>
+    <div class="seg" id="pj-acc" style="display:flex"><button data-acc="team" class="${p.access === 'private' ? '' : 'on'}" style="flex:1">Everyone in the team</button><button data-acc="private" class="${p.access === 'private' ? 'on' : ''}" style="flex:1">Only people I choose</button></div>
+    <p class="section-foot" id="pj-acc-note"></p>
+    <div class="menu" id="pj-people" style="margin-top:10px"></div>`,
     onOpen: root => {
       wireSwatches(root, c => { color = c; });
       const homeTeam = () => teamById(isNew ? ($('#pj-team', root) ? $('#pj-team', root).value : scopeTeamId()) : p.teamId);
@@ -2744,13 +2847,40 @@ function projectDialog(p) {
         $('#pj-share-box', root).innerHTML = shareRowsHtml('pj', ht, pre, D().teams);
         wireShareRows(root, 'pj'); root.dataset.drawn = '1';
       };
-      draw(); const sel = $('#pj-team', root); if (sel) sel.onchange = () => { root.dataset.drawn = ''; $('#pj-share-box', root).innerHTML = ''; draw(); };
+      draw(); const sel = $('#pj-team', root); if (sel) sel.onchange = () => { root.dataset.drawn = ''; $('#pj-share-box', root).innerHTML = ''; draw(); drawPeople(); };
+      /* People: owner is fixed; others can be Manager, or (when limited) Can view. */
+      const owner = isNew ? me() : userById(p.createdBy);
+      const roleOf = {}; (p.members || []).forEach(id => roleOf[id] = 'view'); (p.managers || []).forEach(id => roleOf[id] = 'manage');
+      root._acc = p.access === 'private' ? 'private' : 'team'; root._roles = roleOf;
+      const drawPeople = () => {
+        const ht = homeTeam(); if (!ht) return;
+        const teams = [ht.id, ...readShareRows(root, 'pj')];
+        const priv = root._acc === 'private';
+        const cands = peopleFor(teams).filter(u => !owner || u.id !== owner.id);
+        $('#pj-acc-note', root).textContent = priv ? 'Only the owner and the people marked Can view or Manager see this project. Department heads of the team can still manage it.'
+          : 'Everyone in the chosen teams can see it and work on tasks. Managers can also edit the project, its stages, archive and delete it.';
+        const label = r => r === 'manage' ? 'Manager' : r === 'view' ? 'Can view' : (priv ? 'No access' : 'Member');
+        $('#pj-people', root).innerHTML = (owner ? `<div class="li" style="--inset:58px">${av(owner)}<span class="lbl"><div style="font-weight:600">${esc(owner.name)}</div><div class="sub" style="font-size:13px">${esc(owner.jobTitle || '')}</div></span><span class="chip role-head">Owner</span></div>` : '')
+          + cands.map(u => { const r = root._roles[u.id] || 'none'; const shown = !priv && r === 'view' ? 'none' : r;
+            return `<button class="li" data-person="${u.id}" style="--inset:58px">${av(u)}<span class="lbl"><div style="font-weight:600">${esc(u.name)}</div><div class="sub" style="font-size:13px">${esc(u.jobTitle || '')}</div></span><span class="chip ${shown === 'manage' ? 'role-head' : shown === 'view' ? 'role-admin' : 'role-member'}">${label(shown)}</span>${ic('updown', 's')}</button>`; }).join('');
+        $$('[data-person]', root).forEach(b => b.onclick = () => {
+          const id = b.dataset.person, cur = root._roles[id] || 'none';
+          const cycle = priv ? { none: 'view', view: 'manage', manage: 'none' } : { none: 'manage', view: 'manage', manage: 'none' };
+          root._roles[id] = cycle[cur]; Motion.haptic(); drawPeople();
+        });
+      };
+      $$('[data-acc]', root).forEach(b => b.onclick = () => { $$('[data-acc]', root).forEach(x => x.classList.toggle('on', x === b)); root._acc = b.dataset.acc; Motion.haptic(); drawPeople(); });
+      $('#pj-share-box', root).addEventListener('change', drawPeople);
+      drawPeople();
     },
     onOk: root => {
       const name = $('#pj-name', root).value.trim(); if (!name) { toast('Give the project a name.', true); return false; }
       const obj = Object.assign({}, isNew ? {} : p, { name, description: $('#pj-desc', root).value, color, status: $('#pj-status', root).value, due: $('#pj-due', root).value });
       if (isNew) { obj.id = uidC('p'); obj.teamId = $('#pj-team', root) ? $('#pj-team', root).value : scopeTeamId(); }
       obj.shareTeams = readShareRows(root, 'pj');
+      obj.access = root._acc;
+      obj.managers = Object.keys(root._roles).filter(id => root._roles[id] === 'manage');
+      obj.members = root._acc === 'private' ? Object.keys(root._roles).filter(id => root._roles[id] === 'view' || root._roles[id] === 'manage') : [];
       op({ action: 'saveProject', project: obj });
       if (isNew) nav(() => { S.view = 'project'; S.projectId = obj.id; }, 'push'); else render();
       toast(isNew ? 'Project created' : 'Project saved');
