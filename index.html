@@ -895,6 +895,19 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .desk-seg,.desk-tool{display:none!important}
 }
 
+.pstats{display:contents}
+.mob-avs{display:none}
+@media (max-width:1023px){
+  .desk-avs{display:none}
+  .mob-avs{display:inline-flex;flex:none}
+  .controls{flex-wrap:nowrap;row-gap:10px;display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center}
+  .controls .pstats{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;grid-column:1/-1}
+  .controls .pstats>*{min-width:0}
+  .controls .pstats .pill,.controls .pstats>button>.pill{width:100%;justify-content:center;height:32px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .controls .pstats>button{display:flex;min-width:0}
+  .controls .sp{display:block}
+}
+
 </style>
 </head>
 <body>
@@ -2521,11 +2534,11 @@ function projectHtml() {
   return `<div class="phead">${pdot(p, 'lg')}<div style="min-width:0;flex:1"><h1>${esc(p.name)}<button class="btn sm gray exp-btn" data-act="exportMenu" aria-label="Export project">${ic('download', 's')}<span>Export</span></button></h1>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}</div></div>
     ${finished ? `<div class="banner done-banner"><span class="ico" style="background:var(--green);border-radius:50%">${ic('check')}</span><div style="flex:1;min-width:0"><div class="t">All ${pr.total} tasks are done</div><div class="d">Archive the project to move it out of your project list. You can restore it any time.</div></div><button class="btn primary sm" data-act="archiveProject" data-id="${p.id}">Archive</button></div>` : ''}
     <div class="controls">
-      <button data-act="projStatus" aria-label="Project status">${pillHtml(ps)}</button>
+      <div class="pstats"><button data-act="projStatus" aria-label="Project status">${pillHtml(ps)}</button>
       <span class="pill tnum">${pr.pct}% · ${pr.done}/${pr.total}</span>
       ${p.due ? `<span class="pill">${ic('cal', 'xs')} Due ${fmtDay(p.due)}</span>` : ''}
-      ${p.archived ? '<span class="pill role-pending">Archived</span>' : ''}
-      ${avs(people, 5, '')}
+      ${p.archived ? '<span class="pill role-pending">Archived</span>' : ''}</div>
+      <span class="desk-avs">${avs(people, 5, '')}</span><span class="mob-avs">${avs(people, people.length > 3 ? 2 : 3, '')}</span>
       <span class="sp"></span>
       <button class="btn sm gray mob-only-f" data-act="viewMenu">${ic((modes.find(x => x[0] === S.mode) || modes[0])[1], 's')}<span>${(modes.find(x => x[0] === S.mode) || modes[0])[2]}</span>${ic('chevD', 'xs')}</button>
       <div class="seg desk-seg" id="seg-mode">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
