@@ -883,6 +883,17 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .mob-only.hdr-ics{display:inline-flex}
 }
 @media (max-width:1023px){ .home-sub{display:none} }
+/* team list role sub-headers (phones only) */
+.rsub{display:none}
+.rchips{display:contents}
+.mob-only-f{display:none}
+@media (max-width:1023px){
+  .rsub{display:block;padding:12px 16px 2px;font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em}
+  .rchips{display:none}
+  .phead>.pdot,.exp-btn{display:none!important}
+  .mob-only-f{display:inline-flex}
+  .desk-seg,.desk-tool{display:none!important}
+}
 
 </style>
 </head>
@@ -2323,8 +2334,8 @@ function renderTabs() {
     pill.style.transform = 'translateX(' + (i * 100) + '%)'; Motion.pillIdx = i;
   }
   const fab = $('#fab');
-  fab.dataset.act = S.view === 'projects' ? 'newProject' : 'newTask';
-  fab.setAttribute('aria-label', S.view === 'projects' ? 'New project' : 'New task');
+  fab.dataset.act = 'fabMenu'; // phones: choose New Task or New Project
+  fab.setAttribute('aria-label', 'New');
 }
 
 /* ---------------- navbar ---------------- */
@@ -2516,11 +2527,12 @@ function projectHtml() {
       ${p.archived ? '<span class="pill role-pending">Archived</span>' : ''}
       ${avs(people, 5, '')}
       <span class="sp"></span>
-      <div class="seg" id="seg-mode">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
+      <button class="btn sm gray mob-only-f" data-act="viewMenu">${ic((modes.find(x => x[0] === S.mode) || modes[0])[1], 's')}<span>${(modes.find(x => x[0] === S.mode) || modes[0])[2]}</span>${ic('chevD', 'xs')}</button>
+      <div class="seg desk-seg" id="seg-mode">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
       <button class="btn sm ${pfCount() ? '' : 'gray'}" data-act="projFilter" style="${pfCount() ? 'background:var(--accent-soft)' : ''}">${ic('filter', 's')}<span>Filter${pfCount() ? ' · ' + pfCount() : ''}</span></button>
       <button class="circle flat sm" data-act="projMenu" aria-label="Project options">${ic('more')}</button>
-      ${S.mode === 'board' && canEditStages(p) ? `<button class="btn sm gray" data-act="editStages">${ic('plus', 's')}<span>Stage</span></button>` : ''}
-      ${S.mode === 'list' ? (() => { const all = allOpen(p); return `<button class="btn sm gray" data-act="expandAll" data-on="${all ? 0 : 1}">${ic(all ? 'chevU' : 'chevD', 's')}<span>${all ? 'Collapse All' : 'Expand All'}</span></button>`; })() : ''}
+      ${S.mode === 'board' && canEditStages(p) ? `<button class="btn sm gray desk-tool" data-act="editStages">${ic('plus', 's')}<span>Stage</span></button>` : ''}
+      ${S.mode === 'list' ? (() => { const all = allOpen(p); return `<button class="btn sm gray desk-tool" data-act="expandAll" data-on="${all ? 0 : 1}">${ic(all ? 'chevU' : 'chevD', 's')}<span>${all ? 'Collapse All' : 'Expand All'}</span></button>`; })() : ''}
     </div>${body}`;
 }
 /* Expand / collapse everything in the list view: stages and every task's subtasks. */
@@ -2602,7 +2614,8 @@ function teamHtml() {
       : `<div class="menu" style="margin-top:14px">${emptyState('personPlus', 'green', 'No requests', 'When someone signs up for your team, you’ll approve them here.')}</div>`;
   } else {
     body = (Object.keys(groups).length ? '' : `<div class="menu" style="margin-top:14px">${emptyState('people', 'gray', 'Nobody here', 'No one matches these filters.')}</div>`) + Object.keys(groups).map(tid => `<div class="section-title">${esc(teamLabel(teamById(tid)))} <span class="n tnum">${groups[tid].length}</span></div>
-      <div class="menu">${groups[tid].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div>${(u.teamIds || []).length ? '<span class="chip role-member">Cluster</span>' : ''}${roleChip(u)}<span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>`).join('');
+      <div class="menu">${groups[tid].map((u, i, l) => { const lead = u.role !== 'member', first = i === 0 || (l[i - 1].role !== 'member') !== lead;
+        return (first ? `<div class="rsub">${lead ? 'Department Head' : 'Team Members'}</div>` : '') + `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${u.id === me().id ? ' <span class="faint">(You)</span>' : ''}</div><div class="jt">${esc(u.jobTitle || '—')}</div></div><span class="rchips">${(u.teamIds || []).length ? '<span class="chip role-member">Cluster</span>' : ''}${roleChip(u)}</span><span class="chev faint">${ic('chevR', 's')}</span></button>`; }).join('')}</div>`).join('');
     body += `<div class="section-title">Invite People</div><div class="menu"><div class="li" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--accent)">${ic('key')}</span>
       <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="sub" style="font-size:15px;margin-top:2px;letter-spacing:-.23px">New people enter property code <b class="tnum">${esc(me().propertyCode)}</b>, choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
   }
@@ -3187,6 +3200,13 @@ const ACT = {
         });
       } });
   },
+  fabMenu(el) {
+    openMenu(el, [{ label: 'New Task', icon: ic('mytasks', 's'), onClick: () => ACT.newTask(el) }, { label: 'New Project', icon: ic('folder', 's'), onClick: () => ACT.newProject(el) }]);
+  },
+  viewMenu(el) {
+    const M = [['list', 'list', 'List'], ['board', 'board', 'Board'], ['calendar', 'cal', 'Calendar']];
+    openMenu(el, M.map(([k, i, l]) => ({ label: l, icon: ic(i, 's'), checked: S.mode === k, onClick: () => ACT.mode({ dataset: { m: k } }) })));
+  },
   homeScope(el) {
     const mine = myTeamIds(), go = id => () => { S.scope = id; store.set('orbit_scope', id); nav(() => { }, 'fade'); };
     const props = D().properties.filter(p => D().teams.some(t => t.propertyCode === p.code && mine.includes(t.id)));
@@ -3362,8 +3382,14 @@ const ACT = {
   projStatus(el) { const p = projById(S.projectId); openMenu(el, Object.keys(PSTATUS).map(k => ({ html: pillHtml(PSTATUS[k]), checked: p.status === k, onClick: () => { op({ action: 'saveProject', project: Object.assign({}, p, { status: k }) }); render(); } }))); },
   projMenu(el) {
     const p = projById(S.projectId);
-    if (!canManageProj(p)) { openMenu(el, [{ label: 'Only this project’s managers can change it', icon: ic('lock', 's'), onClick: () => { } }]); return; }
-    const items = [{ label: 'Edit Project', icon: ic('pencil', 's'), onClick: () => projectDialog(p) },
+    // phones: the toolbar is just View · Filter · •••, so Expand All / Add Stage / Export live here
+    const extra = innerWidth < 1024 ? [
+      ...(S.mode === 'list' ? [{ label: allOpen(p) ? 'Collapse All' : 'Expand All', icon: ic(allOpen(p) ? 'chevU' : 'chevD', 's'), onClick: () => ACT.expandAll({ dataset: { on: allOpen(p) ? '0' : '1' } }) }] : []),
+      ...(S.mode === 'board' && canEditStages(p) ? [{ label: 'Add Stage', icon: ic('plus', 's'), onClick: () => stagesDialog(p) }] : []),
+      { label: 'Export PDF', icon: ic('printer', 's'), onClick: () => exportProject(p, 'pdf') },
+      { label: 'Export HTML', icon: ic('download', 's'), onClick: () => exportProject(p, 'html') }, '-'] : [];
+    if (!canManageProj(p)) { openMenu(el, [...extra, { label: 'Only this project’s managers can change it', icon: ic('lock', 's'), onClick: () => { } }]); return; }
+    const items = [...extra, { label: 'Edit Project', icon: ic('pencil', 's'), onClick: () => projectDialog(p) },
       { label: 'Edit Stages', icon: ic('board', 's'), onClick: () => stagesDialog(p) },
       hasDoneStage(stagesOf(p)) ? { label: 'Keep Completed Tasks in Their Stage', icon: ic('check', 's'), onClick: () => setDoneColumn(p, false) }
         : { label: 'Move Completed Tasks to a Done Column', icon: ic('done', 's'), onClick: () => setDoneColumn(p, true) },
