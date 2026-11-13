@@ -275,6 +275,8 @@ body.insp-open .tab-fade{opacity:0}
 .pending-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite}
 .due.over{color:var(--red);font-weight:600} .due.today{color:var(--orange);font-weight:600}
 .flag{display:inline-flex}
+.pmark{display:inline-flex;width:10px;height:15px;flex:none}
+.pmark svg{width:100%;height:100%;display:block}
 .addrow{display:flex;align-items:center;gap:12px;padding:12px 16px;color:var(--accent);position:relative}
 .addrow::before{content:"";position:absolute;top:0;right:0;left:52px;height:.5px;background:var(--sep)}
 .addrow:first-child::before{display:none}
@@ -831,6 +833,26 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 /* no visible scrollbars anywhere (scrolling still works); also keeps page width constant in every browser */
 *{scrollbar-width:none}
 *::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* right side of task rows: fixed slots so counts, ribbons and photos line up from row to row */
+.trow .right{gap:0}
+.trow .right>span:empty{display:none}
+.rc-cnt{display:inline-flex;justify-content:flex-end}
+.rc-flag{display:inline-flex;justify-content:center;width:12px;margin:0 12px 0 10px}
+.rc-av{display:inline-flex;justify-content:flex-end;min-width:30px}
+.trow .right>.rc-flag,.trow .right>.rc-av{display:inline-flex}
+.rc-due,.rc-st{display:none}
+@media (min-width:1024px){
+  .trow.rc .tsub .d-due,.trow.rc .tsub .d-st{display:none}
+  .trow.rc{align-items:center}
+  .trow.rc .right{display:grid;grid-template-columns:96px 110px 56px 34px 58px;align-items:center;padding-top:0}
+  .trow.rc .right>span{display:inline-flex;align-items:center;min-width:0}
+  .trow.rc .rc-due,.trow.rc .rc-st{font-size:13px;color:var(--text-2);white-space:nowrap;overflow:hidden}
+  .trow.rc .rc-flag{width:auto;margin:0;justify-content:center}
+  .trow.rc .rc-cnt,.trow.rc .rc-av{justify-content:flex-end}
+}
+.filters .link[data-k=clear],.fp-h .link[data-f=clear]{color:var(--red);font-weight:600}
+.fp-h .link[data-f=clear]:disabled{color:var(--text-4)}
 
 </style>
 </head>
@@ -2155,7 +2177,10 @@ function avs(ids, max = 3, cls = 'sm') {
 const pillHtml = meta => `<span class="pill" style="background:color-mix(in srgb,${cvar(meta.c)} 15%,transparent);color:${cvar(meta.c)}"><span class="dot" style="background:${cvar(meta.c)};width:8px;height:8px"></span>${esc(meta.l)}</span>`;
 const roleChip = u => u.status === 'pending' ? '<span class="chip role-pending">Waiting</span>' : u.status === 'disabled' ? '<span class="chip role-disabled">Turned Off</span>' :
   `<span class="chip role-${u.role}">${ROLE[u.role]}</span>`;
-function flag(p, cls = 's') { if (!p || p === 'none') return ''; return `<span class="flag" style="color:${cvar(PRIO[p].c)}" title="${PRIO[p].l} priority">${ic('flag', cls)}</span>`; }
+/* Priority marker: a solid ribbon (bookmark) shape in the priority colour. */
+const PRIO_SVG = '<svg viewBox="0 0 132 204" aria-hidden="true"><path d="M132 146L66 204L0 146L0 0L132 0Z" fill="currentColor"/></svg>';
+const prioMark = k => `<span class="pmark" style="color:${cvar(PRIO[k].c)}">${PRIO_SVG}</span>`;
+function flag(p) { if (!p || p === 'none') return ''; return `<span class="flag" title="${PRIO[p].l} priority">${prioMark(p)}</span>`; }
 function dueHtml(t) {
   if (!t.due) return '';
   const n = dayDiff(t.due), cls = isDone(t) ? '' : n < 0 ? 'over' : n === 0 ? 'today' : '';
@@ -2358,16 +2383,17 @@ function taskRow(t, opt = {}) {
   const open = opt.expand && subs.length && accOpen('sub', t.id, '');
   const twist = opt.expand ? (subs.length ? `<button class="twist ${open ? 'open' : ''}" data-act="acc" data-g="sub" data-k="${t.id}" aria-label="Show or hide subtasks" aria-expanded="${open ? 'true' : 'false'}">${ic('chevR', 's')}</button>` : '<span class="twist"></span>') : '';
   const shownSubs = S.showDoneSubs ? subs : subs.filter(s => !isDone(s));
-  const nested = opt.expand && subs.length ? accPanel('sub', t.id, open, shownSubs.map(s => taskRow(s, { pend: opt.pend, nested: true, cells: opt.cells })).join('') + (sd && !S.showDoneSubs ? `<button class="trow nested more-done" data-act="toggleDoneSubs">${ic('done', 's')}Show ${sd} completed</button>` : '')) : '';
-  return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''} ${opt.nested ? 'nested' : ''} ${opt.expand ? 'has-twist' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
+  const nested = opt.expand && subs.length ? accPanel('sub', t.id, open, shownSubs.map(s => taskRow(s, { pend: opt.pend, nested: true, cells: opt.cells, rc: opt.rc || (opt.showProject && !opt.cells) })).join('') + (sd && !S.showDoneSubs ? `<button class="trow nested more-done" data-act="toggleDoneSubs">${ic('done', 's')}Show ${sd} completed</button>` : '')) : '';
+  const rc = opt.rc || (opt.showProject && !opt.cells), st = stageOf(t);
+  return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''} ${opt.nested ? 'nested' : ''} ${opt.expand ? 'has-twist' : ''} ${rc ? 'rc' : ''}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
     ${twist}<button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
     <div class="body"><div class="ttl">${esc(t.title)}</div>
       <div class="tsub">${opt.showProject && p ? `<span style="color:${cvar(p.color)};font-weight:600">${pdot(p)} ${esc(p.name)}</span>` : ''}
         ${parent && !opt.nested ? `<span>${ic('sub', 'xs')}${esc(parent.title)}</span>` : ''}
         <span class="d-due">${dueHtml(t)}</span>${t.repeat ? `<span title="${esc(repeatLabel(t.repeat, t.repeatOn))}">${ic('repeat', 'xs')}${esc(REPEAT_S[t.repeat] || '')}</span>` : ''}
         ${nc ? `<span>${ic('bubble', 'xs')}${nc}</span>` : ''}${nf ? `<span>${ic('clip', 'xs')}${nf}</span>` : ''}
-        ${opt.showStatus && !done ? (st => `<span style="color:${cvar(st.c)}">${esc(st.l)}</span>`)(stageOf(t)) : ''}</div></div>
-    <div class="right">${pending ? '<span class="pending-dot" title="Saving"></span>' : ''}${subs.length ? `<span class="cnt ${sd === subs.length ? 'all' : ''}" title="Subtasks done">${ic('mytasks', 'xs')}${sd}/${subs.length}</span>` : ''}<span class="d-pa">${flag(t.priority)}${avs(t.assignees)}</span></div>${opt.cells ? cellsHtml(t) : ''}
+        ${opt.showStatus && !done ? `<span class="d-st" style="color:${cvar(st.c)}">${esc(st.l)}</span>` : ''}</div></div>
+    <div class="right">${pending ? '<span class="pending-dot" title="Saving"></span>' : ''}${rc ? `<span class="rc-due">${dueHtml(t)}</span><span class="rc-st">${(opt.showStatus || opt.rc) && !done ? `<span style="color:${cvar(st.c)}">${esc(st.l)}</span>` : ''}</span>` : ''}<span class="rc-cnt">${subs.length ? `<span class="cnt ${sd === subs.length ? 'all' : ''}" title="Subtasks done">${ic('mytasks', 'xs')}${sd}/${subs.length}</span>` : ''}</span><span class="rc-flag d-pa">${flag(t.priority)}</span><span class="rc-av d-pa">${avs(t.assignees)}</span></div>${opt.cells ? cellsHtml(t) : ''}
   </div>${nested}`;
 }
 /* Desktop list: assignee, due date, priority and stage on the task's own line, each editable in place. */
@@ -3114,7 +3140,7 @@ const ACT = {
   },
   editSubStages(el) { const t = taskById(el.dataset.id); if (t) stagesDialog(projById(t.projectId), t); },
   statusMenu(el) { const t = taskById(el.dataset.id), cur = stageOf(t).id; openMenu(el, stagesForTask(t).map(s => ({ html: pillHtml({ l: s.name, c: s.color }), checked: cur === s.id, onClick: () => saveTask({ id: t.id, status: s.id }) }))); },
-  prioMenu(el) { const t = taskById(el.dataset.id); openMenu(el, ['urgent', 'high', 'medium', 'low', 'none'].map(k => ({ label: PRIO[k].l, icon: `<span style="color:${cvar(PRIO[k].c)}">${ic('flag', 's')}</span>`, checked: (t.priority || 'none') === k, onClick: () => saveTask({ id: t.id, priority: k }) }))); },
+  prioMenu(el) { const t = taskById(el.dataset.id); openMenu(el, ['urgent', 'high', 'medium', 'low', 'none'].map(k => ({ label: PRIO[k].l, icon: k === 'none' ? `<span style="color:var(--text-3)">${ic('flag', 's')}</span>` : prioMark(k), checked: (t.priority || 'none') === k, onClick: () => saveTask({ id: t.id, priority: k }) }))); },
   moveMenu(el) {
     const t = taskById(el.dataset.id);
     const list = D().projects.filter(p => p.teamId === t.teamId && !p.archived);
@@ -3474,7 +3500,7 @@ function filterPop(anchor) {
         ${chip(f.state === 'open', 'state', 'open', ic('check', 's') + 'Incomplete tasks')}${chip(f.state === 'done', 'state', 'done', ic('done', 's') + 'Completed tasks')}
         ${chip(f.mine, 'mine', '1', ic('person', 's') + 'Just my tasks')}${chip(f.due === 'this', 'due', 'this', ic('cal', 's') + 'Due this week')}${chip(f.due === 'next', 'due', 'next', ic('cal', 's') + 'Due next week')}</div>
       <div class="fp-s">Assignee</div><div class="fp-c">${people.map(u => chip(f.who.includes(u.id), 'who', u.id, av(u, 'xs') + esc(firstName(u.name)))).join('')}${chip(f.who.includes('_none'), 'who', '_none', ic('person', 's') + 'Unassigned')}</div>
-      <div class="fp-s">Priority</div><div class="fp-c">${['urgent', 'high', 'medium', 'low', 'none'].map(k => chip(f.prio.includes(k), 'prio', k, `<span style="color:${cvar(PRIO[k].c)}">${ic('flag', 's')}</span>${esc(k === 'none' ? 'No priority' : PRIO[k].l)}`)).join('')}</div>`;
+      <div class="fp-s">Priority</div><div class="fp-c">${['urgent', 'high', 'medium', 'low', 'none'].map(k => chip(f.prio.includes(k), 'prio', k, `${k === 'none' ? `<span style="color:var(--text-3)">${ic('flag', 's')}</span>` : prioMark(k)}${esc(k === 'none' ? 'No priority' : PRIO[k].l)}`)).join('')}</div>`;
   };
   root.innerHTML = `<div style="position:fixed;inset:0;z-index:94" data-mclose="1"></div><div class="menu-pop fpop" role="dialog" aria-label="Filters"></div>`;
   draw();
