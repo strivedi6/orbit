@@ -431,10 +431,16 @@ var ACTIONS = {
       ownerId: str(p.ownerId), status: PROJECT_STATUSES.indexOf(p.status) >= 0 ? p.status : 'on_track', due: str(p.due, 10),
       archived: truthy(p.archived), updatedAt: nowISO() };
     if (!fields.name) fail('Give the project a name.');
-    var shares = function (home) {
+    // Only the main admin can share with any property; everyone else only with properties they belong to
+    // (a share that is already on the project is kept).
+    var myProps = userTeams(u).map(function (id) { return (DB.get('teams', id) || {}).propertyCode; });
+    var shares = function (home, before) {
       var seen = {};
       return (Array.isArray(p.shareTeams) ? p.shareTeams : []).filter(function (id) {
-        if (!id || id === home || seen[id] || !DB.get('teams', id)) return false; seen[id] = 1; return true;
+        var t = id && DB.get('teams', id);
+        if (!t || id === home || seen[id]) return false;
+        if (!isAdmin(u) && myProps.indexOf(t.propertyCode) < 0 && (before || []).indexOf(id) < 0) return false;
+        seen[id] = 1; return true;
       });
     };
     var people = function (list) { return listOf(list).filter(function (id, i, a) { return a.indexOf(id) === i && DB.get('users', id); }); };
@@ -445,7 +451,7 @@ var ACTIONS = {
     if (existing) {
       if (!canSeeProject(u, existing)) fail('That project no longer exists.');
       if (!canManageProject(u, existing)) fail('Only this project’s managers or a department head can change it.');
-      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId);
+      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId, existing.shareTeams);
       DB.update('projects', existing.id, fields);
       return DB.get('projects', existing.id);
     }

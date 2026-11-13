@@ -26,7 +26,7 @@
   --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#FFFFFF; --elev:#FFFFFF; --panel:#F6F6F9;
   --fill:rgba(120,120,128,.20); --fill-2:rgba(120,120,128,.16); --fill-3:rgba(118,118,128,.12); --fill-4:rgba(116,116,128,.08);
   --text:#000000; --text-2:rgba(60,60,67,.60); --text-3:#8E8E93; --text-4:rgba(60,60,67,.30);
-  --sep:rgba(60,60,67,.22); --line:#E5E5EA;
+  --sep:rgba(60,60,67,.16); --line:#E5E5EA;
   --blue:#0088FF; --green:#34C759; --red:#FF383C; --orange:#FF8D28; --yellow:#FFCC00; --teal:#00C3D0; --indigo:#6155F5; --pink:#FF2D55;
   --purple:#CB30E0; --mint:#00C8B3; --cyan:#00C0E8; --brown:#AC7F5E; --gray:#8E8E93;
   --accent:var(--blue); --on-accent:#FFFFFF;
@@ -39,7 +39,7 @@
   --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --elev:#1C1C1E; --panel:#121214;
   --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.32); --fill-3:rgba(118,118,128,.24); --fill-4:rgba(118,118,128,.18);
   --text:#FFFFFF; --text-2:rgba(235,235,245,.60); --text-3:#8E8E93; --text-4:rgba(235,235,245,.30);
-  --sep:rgba(84,84,88,.55); --line:#38383A;
+  --sep:rgba(84,84,88,.24); --line:#38383A;
   --blue:#0091FF; --green:#30D158; --red:#FF4245; --orange:#FF9230; --yellow:#FFD600; --teal:#00D2E0; --indigo:#6D7CFF; --pink:#FF375F;
   --purple:#DB34F2; --mint:#00DAC3; --cyan:#3CD3FE; --brown:#B78A66; --gray:#98989D;
   --glass:rgba(40,40,42,.55); --glass-strong:rgba(44,44,46,.84); --glass-edge:rgba(255,255,255,.14);
@@ -50,7 +50,7 @@
   --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --elev:#1C1C1E; --panel:#121214;
   --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.32); --fill-3:rgba(118,118,128,.24); --fill-4:rgba(118,118,128,.18);
   --text:#FFFFFF; --text-2:rgba(235,235,245,.60); --text-3:#8E8E93; --text-4:rgba(235,235,245,.30);
-  --sep:rgba(84,84,88,.55); --line:#38383A;
+  --sep:rgba(84,84,88,.24); --line:#38383A;
   --blue:#0091FF; --green:#30D158; --red:#FF4245; --orange:#FF9230; --yellow:#FFD600; --teal:#00D2E0; --indigo:#6D7CFF; --pink:#FF375F;
   --purple:#DB34F2; --mint:#00DAC3; --cyan:#3CD3FE; --brown:#B78A66; --gray:#98989D;
   --glass:rgba(40,40,42,.55); --glass-strong:rgba(44,44,46,.84); --glass-edge:rgba(255,255,255,.14);
@@ -401,7 +401,7 @@ button.person:active{background:var(--fill-4)}
 .sheet-back{position:fixed;inset:0;z-index:60;background:var(--dim);opacity:0;transition:opacity .35s}
 .sheet-back.in{opacity:1}
 .sheet{position:fixed;z-index:61;left:0;right:0;bottom:var(--vb);max-width:720px;margin:0 auto;padding-bottom:var(--safe-b);max-height:calc(100% - var(--safe-t) - 40px);display:flex;flex-direction:column;
-  background:var(--bg);border-radius:38px 38px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(110%);transition:transform .5s var(--ease);overflow:hidden}
+  background:var(--panel);border-radius:38px 38px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(110%);transition:transform .5s var(--ease);overflow:hidden}
 .sheet.in{transform:none}
 .sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--fill);margin:6px auto 0;flex:none}
 .sh-h{display:grid;grid-template-columns:minmax(64px,auto) 1fr minmax(64px,auto);align-items:center;gap:8px;padding:6px 14px 4px;flex:none}
@@ -576,6 +576,18 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .c-due input{position:absolute;left:10px;bottom:4px;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
   .trow.nested .cells{font-size:13px}
 }
+/* list dividers: one consistent hairline under every row, including rows after an open/closed subtask panel */
+.acc+.trow::before,.acc+.li::before{content:"";position:absolute;top:0;right:0;left:52px;height:.5px;background:var(--sep)}
+.tlist .addrow{padding-left:42px}
+.tlist .addrow>svg{width:20px;height:20px;flex:none}
+.kcard .ttl-row .avs{margin-left:auto;flex:none}
+.kcard .ft .cnt{margin-left:0}
+@container (min-width: 760px){
+  .tlist .acc>.acc-in>.menu,.tlist>.tbl-h{margin-left:32px}
+  .c-st{padding:0 10px 0 8px}
+  .c-st .pill{width:100%;justify-content:flex-start}
+}
+
 /* ---------- export + filters ---------- */
 .phead h1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .exp-btn{font-size:14px;letter-spacing:-.15px;height:30px}
@@ -1095,10 +1107,16 @@ var ACTIONS = {
       ownerId: str(p.ownerId), status: PROJECT_STATUSES.indexOf(p.status) >= 0 ? p.status : 'on_track', due: str(p.due, 10),
       archived: truthy(p.archived), updatedAt: nowISO() };
     if (!fields.name) fail('Give the project a name.');
-    var shares = function (home) {
+    // Only the main admin can share with any property; everyone else only with properties they belong to
+    // (a share that is already on the project is kept).
+    var myProps = userTeams(u).map(function (id) { return (DB.get('teams', id) || {}).propertyCode; });
+    var shares = function (home, before) {
       var seen = {};
       return (Array.isArray(p.shareTeams) ? p.shareTeams : []).filter(function (id) {
-        if (!id || id === home || seen[id] || !DB.get('teams', id)) return false; seen[id] = 1; return true;
+        var t = id && DB.get('teams', id);
+        if (!t || id === home || seen[id]) return false;
+        if (!isAdmin(u) && myProps.indexOf(t.propertyCode) < 0 && (before || []).indexOf(id) < 0) return false;
+        seen[id] = 1; return true;
       });
     };
     var people = function (list) { return listOf(list).filter(function (id, i, a) { return a.indexOf(id) === i && DB.get('users', id); }); };
@@ -1109,7 +1127,7 @@ var ACTIONS = {
     if (existing) {
       if (!canSeeProject(u, existing)) fail('That project no longer exists.');
       if (!canManageProject(u, existing)) fail('Only this project’s managers or a department head can change it.');
-      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId);
+      if (p.shareTeams !== undefined) fields.shareTeams = shares(existing.teamId, existing.shareTeams);
       DB.update('projects', existing.id, fields);
       return DB.get('projects', existing.id);
     }
@@ -2177,7 +2195,7 @@ function sidebarHtml() {
     <div class="sb-nav">
       ${nav('home', 'home', 'Home')}
       ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
-      ${nav('activity', 'bell', 'Activity', un ? `<span class="badge">${un}</span>` : '')}
+      ${nav('activity', 'bell', 'Activity')}
       ${nav('team', 'people', 'Team', pend ? `<span class="badge">${pend}</span>` : '')}
       ${nav('workload', 'chart', 'Workload')}
     </div>
@@ -2216,7 +2234,7 @@ function renderTabs() {
   const i = TABS.indexOf(cur);
   $$('.tab', root).forEach(b => {
     b.classList.toggle('on', b.dataset.tab === cur);
-    const n = b.dataset.tab === 'home' ? unread() : b.dataset.tab === 'team' ? pendingUsers().length : 0;
+    const n = b.dataset.tab === 'team' ? pendingUsers().length : 0;
     let bd = $('.badge', b); if (n) { if (!bd) { bd = document.createElement('span'); bd.className = 'badge'; b.appendChild(bd); } bd.textContent = n; } else if (bd) bd.remove();
   });
   const pill = $('.tab-pill', root);
@@ -2427,9 +2445,9 @@ function boardHtml(p) {
       ${list.map(t => {
         const subs = subtasks(t.id), nc = D().comments.filter(c => c.taskId === t.id).length;
         return `<div class="kcard ${isDone(t) ? 'done' : ''}" draggable="true" data-drag="${t.id}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
-          <div class="ttl-row"><button class="check sm ${isDone(t) ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${isDone(t) ? 'Mark as not done' : 'Mark complete'}">${ic('check')}</button><div class="ttl">${esc(t.title)}</div>${subs.length ? `<span class="cnt ${subs.every(isDone) ? 'all' : ''}" title="Subtasks done">${ic('mytasks', 'xs')}${subs.filter(isDone).length}/${subs.length}</span>` : ''}</div>
+          <div class="ttl-row"><button class="check sm ${isDone(t) ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${isDone(t) ? 'Mark as not done' : 'Mark complete'}">${ic('check')}</button><div class="ttl">${esc(t.title)}</div>${avs(t.assignees)}</div>
           <div class="ft">${flag(t.priority)}${dueHtml(t)}${t.repeat ? `<span title="${esc(repeatLabel(t.repeat, t.repeatOn))}">${ic('repeat', 'xs')}</span>` : ''}${nc ? `<span>${ic('bubble', 'xs')} ${nc}</span>` : ''}
-          ${(t.attachments || []).length ? `<span>${ic('clip', 'xs')} ${t.attachments.length}</span>` : ''}<span class="sp"></span>${avs(t.assignees)}</div></div>`;
+          ${(t.attachments || []).length ? `<span>${ic('clip', 'xs')} ${t.attachments.length}</span>` : ''}<span class="sp"></span>${subs.length ? `<span class="cnt ${subs.every(isDone) ? 'all' : ''}" title="Subtasks done">${ic('mytasks', 'xs')}${subs.filter(isDone).length}/${subs.length}</span>` : ''}</div></div>`;
       }).join('')}
       ${S.addingCol === st ? `<div class="kcard"><input class="input" style="height:36px;background:transparent;padding:0;box-shadow:none" id="addcol" placeholder="Task title" data-enter="quickAdd" data-s="${st}" aria-label="New task title"></div>`
         : `<button class="addcard" data-act="addCard" data-s="${st}">${ic('plus', 's')} Add Task</button>`}</div>`;
@@ -3260,7 +3278,10 @@ function projectDialog(p) {
         const ht = homeTeam(); if (!ht) return;
         const cur = Array.from(root.querySelectorAll('[data-share]:checked')).map(x => $('#pj-st-' + x.dataset.share, root).value);
         const pre = cur.length || root.dataset.drawn ? cur : (p.shareTeams || []);
-        $('#pj-share-box', root).innerHTML = shareRowsHtml('pj', ht, pre, D().teams);
+        // people only see the properties they belong to (plus any the project is already shared with)
+        const myProps = userTeamsC(me()).map(id => (teamById(id) || {}).propertyCode);
+        const teams = isAdminU() ? D().teams : D().teams.filter(t => myProps.includes(t.propertyCode) || (p.shareTeams || []).includes(t.id));
+        $('#pj-share-box', root).innerHTML = shareRowsHtml('pj', ht, pre, teams);
         wireShareRows(root, 'pj'); root.dataset.drawn = '1';
       };
       draw(); const sel = $('#pj-team', root); if (sel) sel.onchange = () => { root.dataset.drawn = ''; $('#pj-share-box', root).innerHTML = ''; draw(); drawPeople(); };
