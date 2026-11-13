@@ -179,7 +179,7 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 @keyframes pulse{50%{opacity:.35}}
 .search{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:var(--fill-3);width:240px;color:var(--text-2)}
 .search input{border:0;outline:none;background:transparent;width:100%;font-size:15px;color:var(--text);letter-spacing:-.23px}
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+.scroll{flex:1;overflow-y:auto;scrollbar-gutter:stable;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
   padding:0 16px calc(var(--tab-h) + var(--safe-b) + 44px)}
 .page{max-width:1000px;margin:0 auto;transition:transform .6s var(--spring)}
 .page.wide{max-width:none}
