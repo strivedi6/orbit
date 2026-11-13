@@ -860,7 +860,13 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .my-ctl{display:none}
   .mob-flt{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 6px}
   .mob-flt .pill{width:100%;min-width:0;justify-content:flex-start}
-  .mob-flt .pill>span{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-flt .pill>span:not(.plogo){flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:1023px){
+  .home-desk{display:none}
+  .home-flt{margin:4px 4px 16px}
+  .home-flt .plogo{width:22px;height:22px;flex:none;margin-left:-4px}
+  .home-flt .pill:disabled{opacity:1}
 }
 
 </style>
@@ -2360,7 +2366,13 @@ function homeHtml() {
   const projs = projects();
   return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
     <p class="lt-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'All teams' : myTeamIds().map(id => teamLabel(teamById(id))).join(', ')) : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
-    ${prop.name ? `<div class="prop-badge">${plogo(prop)}${esc(prop.name)}</div>` : ''} ${scopePill()}
+    <div class="home-desk">${prop.name ? `<div class="prop-badge">${plogo(prop)}${esc(prop.name)}</div>` : ''} ${scopePill()}</div>
+    ${(() => { // phones: two equal dropdowns, property (account) and team
+      const multi = multiScope(), st = S.scope !== 'all' ? teamById(S.scope) : null;
+      const pLabel = !multi || st ? (prop.name || prop.code) : 'All Properties', tLabel = st ? st.name : multi ? (isAdminU() ? 'All Teams' : 'All My Teams') : (teamById(m.teamId) || {}).name || '';
+      return `<div class="mob-flt home-flt">
+        <button class="pill flt" ${multi ? 'data-act="homeScope" data-k="prop"' : 'disabled'}>${!multi || st ? plogo(prop) : ic('building', 's')}<span>${esc(pLabel)}</span>${multi ? ic('chevD', 'xs') : ''}</button>
+        <button class="pill flt" ${multi ? 'data-act="homeScope" data-k="team"' : 'disabled'}>${ic('people', 's')}<span>${esc(tLabel)}</span>${multi ? ic('chevD', 'xs') : ''}</button></div>`; })()}
     <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
     ${pend.length ? `<button class="banner" data-act="goRequests"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span>
       <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="d">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
@@ -3122,6 +3134,20 @@ const ACT = {
       const names = [...new Set(teams.filter(t => S.teamProp === 'all' || t.propertyCode === S.teamProp).map(t => t.name))].sort();
       openMenu(el, [{ label: 'All Departments', checked: S.teamDept === 'all', onClick: () => { S.teamDept = 'all'; render(); } }, '-',
         ...names.map(n => ({ label: n, checked: S.teamDept === n, onClick: () => { S.teamDept = n; render(); } }))]);
+    }
+  },
+  homeScope(el) {
+    const mine = myTeamIds(), go = id => () => { S.scope = id; store.set('orbit_scope', id); nav(() => { }, 'fade'); };
+    const props = D().properties.filter(p => D().teams.some(t => t.propertyCode === p.code && mine.includes(t.id)));
+    const cur = S.scope !== 'all' ? (teamById(S.scope) || {}).propertyCode : '';
+    if (el.dataset.k === 'prop') {
+      openMenu(el, [{ label: 'All Properties', checked: S.scope === 'all', onClick: go('all') }, '-',
+        ...props.map(p => ({ html: `<span style="display:inline-flex;align-items:center;gap:8px">${plogo(p)}${esc(p.code + ' · ' + p.name)}</span>`, checked: cur === p.code,
+          onClick: go(D().teams.find(t => t.propertyCode === p.code && mine.includes(t.id)).id) }))]);
+    } else {
+      const ts = D().teams.filter(t => mine.includes(t.id) && (!cur || t.propertyCode === cur));
+      openMenu(el, [{ label: isAdminU() ? 'All Teams' : 'All My Teams', checked: S.scope === 'all', onClick: go('all') }, '-',
+        ...ts.map(t => ({ label: cur ? t.name : t.propertyCode + ' · ' + t.name, checked: S.scope === t.id, onClick: go(t.id) }))]);
     }
   },
   scopeMenu(el) {
