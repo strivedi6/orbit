@@ -882,6 +882,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .desk-only-c{display:none!important}
   .mob-only.hdr-ics{display:inline-flex}
 }
+@media (max-width:1023px){ .home-sub{display:none} }
 
 </style>
 </head>
@@ -2388,7 +2389,7 @@ function homeHtml() {
   const pend = pendingUsers();
   const projs = projects();
   return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
-    <p class="lt-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'All teams' : myTeamIds().map(id => teamLabel(teamById(id))).join(', ')) : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
+    <p class="lt-sub home-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'All teams' : myTeamIds().map(id => teamLabel(teamById(id))).join(', ')) : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
     <div class="home-desk">${prop.name ? `<div class="prop-badge">${plogo(prop)}${esc(prop.name)}</div>` : ''} ${scopePill()}</div>
     ${scopeDuo()}
     <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
@@ -3152,7 +3153,7 @@ const ACT = {
     if (k === 'prop') {
       const codes = [...new Set(teams.map(t => t.propertyCode))];
       openMenu(el, [{ label: 'All Properties', checked: S.teamProp === 'all', onClick: () => { S.teamProp = 'all'; render(); } }, '-',
-        ...codes.map(c => { return { label: c, checked: S.teamProp === c, onClick: () => { S.teamProp = c; render(); } }; })]);
+        ...codes.map(c => { const p = propByCode(c); return { html: `<span style="display:inline-flex;align-items:center;gap:8px">${plogo(p || { code: c })}${esc(c)}</span>`, checked: S.teamProp === c, onClick: () => { S.teamProp = c; render(); } }; })]);
     } else {
       const names = [...new Set(teams.filter(t => S.teamProp === 'all' || t.propertyCode === S.teamProp).map(t => t.name))].sort();
       openMenu(el, [{ label: 'All Departments', checked: S.teamDept === 'all', onClick: () => { S.teamDept = 'all'; render(); } }, '-',
