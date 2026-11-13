@@ -854,6 +854,15 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .filters .link[data-k=clear],.fp-h .link[data-f=clear]{color:var(--red);font-weight:600}
 .fp-h .link[data-f=clear]:disabled{color:var(--text-4)}
 
+/* My Tasks on phones: just two equal dropdowns (Tasks, Projects) */
+.mob-flt{display:none}
+@media (max-width:1023px){
+  .my-ctl{display:none}
+  .mob-flt{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 6px}
+  .mob-flt .pill{width:100%;min-width:0;justify-content:flex-start}
+  .mob-flt .pill>span{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+
 </style>
 </head>
 <body>
@@ -2441,7 +2450,10 @@ function myTasksHtml() {
     if (!body) body = `<div class="menu" style="margin-top:14px">${emptyState('done', 'green', f === 'open' ? 'You’re all caught up' : 'Nothing here', f === 'open' ? 'No open tasks are assigned to you.' : 'No tasks match this filter.')}</div>`;
   }
   return `<h1 class="large-title">My Tasks</h1><p class="lt-sub">Everything assigned to you, by due date.</p>
-    <div class="ctl-row"><div class="seg" id="seg-my" role="tablist">${segs.map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="myFilter" data-f="${k}" role="tab" aria-selected="${f === k}">${l}</button>`).join('')}</div>${filters}</div>${body}`;
+    <div class="mob-flt">
+      <button class="pill flt ${f !== 'open' ? 'on' : ''}" data-act="myFilterPick" data-k="tasks">${ic('mytasks', 's')}<span>${esc((segs.find(x => x[0] === f) || segs[0])[1])}</span>${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.myProj !== 'all' ? 'on' : ''}" data-act="myFilterPick" data-k="proj">${ic('folder', 's')}<span>${esc(pj ? pj.name : 'All Projects')}</span>${ic('chevD', 'xs')}</button></div>
+    <div class="ctl-row my-ctl"><div class="seg" id="seg-my" role="tablist">${segs.map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="myFilter" data-f="${k}" role="tab" aria-selected="${f === k}">${l}</button>`).join('')}</div>${filters}</div>${body}`;
 }
 
 function projectsHtml() {
@@ -3072,6 +3084,7 @@ const ACT = {
   myFilterPick(el) {
     const k = el.dataset.k, set = (f, v) => () => { S[f] = v; render({ soft: true }); };
     if (k === 'clear') { S.myWho = S.myProj = S.myTime = 'all'; render({ soft: true }); return; }
+    if (k === 'tasks') { openMenu(el, [['open', 'All Open'], ['today', 'Today'], ['overdue', 'Overdue'], ['done', 'Completed']].map(([v, l]) => ({ label: l, checked: S.myFilter === v, onClick: set('myFilter', v) }))); return; }
     const mine = myTasks();
     if (k === 'who') {
       const ids = [...new Set(mine.flatMap(t => [...(t.assignees || []), t.createdBy]))].filter(id => id !== me().id).map(userById).filter(u => u && visibleUser(u)).sort((a, b) => a.name.localeCompare(b.name));
