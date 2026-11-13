@@ -166,7 +166,7 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 .navbar{position:relative;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(var(--safe-t) + 4px) 16px 6px;min-height:calc(var(--safe-t) + 54px)}
 .navbar::before{content:"";position:absolute;inset:0 0 -24px 0;z-index:-1;pointer-events:none;
   background:linear-gradient(to bottom,var(--bg) 0%,color-mix(in srgb,var(--bg) 85%,transparent) 55%,transparent 100%);
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);-webkit-mask-image:linear-gradient(to bottom,#000 60%,transparent);mask-image:linear-gradient(to bottom,#000 60%,transparent);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);-webkit-mask-image:linear-gradient(to bottom,#000 60%,transparent);mask-image:linear-gradient(to bottom,#000 60%,transparent);
   opacity:0;transition:opacity .25s}
 .navbar.scrolled::before{opacity:1}
 .navbar .nb-title{flex:1;min-width:0;text-align:center;font-size:17px;font-weight:600;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .25s var(--ease);
@@ -361,7 +361,7 @@ button.person:active{background:var(--fill-4)}
 .insp-bar{display:flex;align-items:center;gap:8px;padding:12px 14px 8px;min-height:62px;flex:none}
 .insp-bar .sp{flex:1}
 .insp-bar .back{display:none;align-items:center;gap:2px;color:var(--accent);font-size:17px;height:44px;padding:0 8px 0 2px;border-radius:999px}
-.insp-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 18px 28px}
+.insp-scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:0 18px 28px}
 .insp-scroll>*{animation:rise .5s var(--ease) backwards}
 .insp-scroll>*:nth-child(2){animation-delay:.03s}.insp-scroll>*:nth-child(3){animation-delay:.06s}.insp-scroll>*:nth-child(4){animation-delay:.09s}.insp-scroll>*:nth-child(n+5){animation-delay:.12s}
 .insp.steady .insp-scroll>*{animation:none}
@@ -772,17 +772,19 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
    Desktop and wide screens: floating sidebar, floating task panel
    ====================================================================== */
 @media (min-width: 1024px){
-  :root{--side:280px;--safe-t:0px;--safe-b:0px;--insp-w:calc((100vw - var(--side)) / 2)}
+  :root{--side:280px;--safe-t:0px;--safe-b:0px;--insp-w:min(720px, calc(100vw - var(--side) - 120px))}
   body{font-size:15px;letter-spacing:-.23px}
   .tabdock,.tab-fade,#aurora{display:none}
   .prop-badge{display:none}
   .sidebar{display:flex;flex-direction:column;gap:4px;position:fixed;z-index:30;top:12px;bottom:12px;left:12px;width:calc(var(--side) - 24px);padding:14px 12px 12px;border-radius:26px;overflow-y:auto;scrollbar-width:thin}
   .main{margin-left:var(--side)}
-  body.insp-open .main{margin-right:var(--insp-w)}
+  /* task panel floats over the page: the page stays full width, dimmed and slightly blurred behind it */
+  .insp-scrim{background:var(--dim);-webkit-backdrop-filter:blur(0px);backdrop-filter:blur(0px);transition:opacity .4s ease,backdrop-filter .4s ease,-webkit-backdrop-filter .4s ease}
+  body.insp-open .insp-scrim{opacity:1;pointer-events:auto;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
   .navbar{padding:14px 24px 8px 12px;min-height:64px}
   .navbar .nb-title{visibility:hidden}
   .scroll{padding:0 28px 56px 12px}
-  .insp{top:12px;right:12px;bottom:12px;width:calc(var(--insp-w) - 12px);border-radius:28px;background:var(--panel);
+  .insp{top:12px;right:12px;bottom:12px;width:var(--insp-w);border-radius:28px;background:var(--panel);
     box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
   .insp.open{box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
   .insp-bar{padding:14px 16px 8px}
@@ -819,6 +821,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .reveal{opacity:1;transform:none}
   .ripple{display:none}
 }
+.mention-pop[hidden]{display:none!important}
 
 </style>
 </head>
@@ -2964,7 +2967,7 @@ const ACT = {
   calNav(el) { const d = +el.dataset.d; if (!d) S.calMonth = todayStr().slice(0, 7); else { const [y, m] = S.calMonth.split('-').map(Number); const n = new Date(y, m - 1 + d, 1); S.calMonth = n.getFullYear() + '-' + pad(n.getMonth() + 1); } render(); },
   openProject(el) { nav(() => { S.view = 'project'; S.projectId = el.dataset.id; S.q = ''; }, 'push'); },
   openTask(el) { S.taskId = el.dataset.id; render(); const is = $('#iscroll'); if (is) is.scrollTop = 0; },
-  closeTask() { S.taskId = null; S.replyTo = null; render({ soft: true }); },
+  closeTask() { const f = document.activeElement; if (f && f.closest && f.closest('#insp')) f.blur(); /* fires change, so notes/title save first */ S.taskId = null; S.replyTo = null; render({ soft: true }); },
   taskBack(el) { S.taskId = el.dataset.id; S.replyTo = null; render(); const i = $('#insp'); if (i && i.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) $$('.insp-scroll > *', i).forEach((x, k) => x.animate([{ opacity: 0, transform: 'translateX(-24px)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: k * 18, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'backwards' })); },
   editStages() { stagesDialog(projById(S.projectId)); },
   wlPeriod(el) { S.wlPeriod = el.dataset.p; render(); },
