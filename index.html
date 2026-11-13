@@ -2032,7 +2032,7 @@ const subtasks = id => D().tasks.filter(t => t.parentId === id).sort((a, b) => a
 const isDone = t => taskDoneIn(t, stagesForTask(t));
 const doneColumn = t => hasDoneStage(stagesForTask(t));
 const myTasks = () => D().tasks.filter(t => (t.assignees || []).includes(me().id) && taskInScope(t));
-const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && userInScope(u));
+const pendingUsers = () => D().users.filter(u => u.status === 'pending' && canManage(u.teamId) && (isAdminU() || userInScope(u))); // the main admin sees every request, whatever team is picked
 const unread = () => D().activity.filter(a => (a.targets || []).includes(me().id) && a.createdAt > (S.seenAt || '')).length;
 const teamLabel = t => t ? (isAdminU() || D().properties.length > 1 ? t.propertyCode + ' · ' : '') + t.name : '';
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
@@ -2538,6 +2538,8 @@ function peopleHtml() {
   return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">People</h1>
       <div class="mob-only hdr-ics"><button class="circle sm" data-act="addMember" aria-label="Add person">${ic('personPlus')}</button></div></div>
     <p class="lt-sub">${st.users.length} accounts across ${st.props.length} ${st.props.length === 1 ? 'property' : 'properties'}</p>
+    ${st.pending.length ? `<div class="section-title" style="margin-top:4px">Waiting for Approval <span class="n tnum">${st.pending.length}</span></div><div class="menu" style="margin-bottom:14px">${st.pending.map(u => `<div class="person">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)} <span class="faint" style="font-weight:400">@${esc(u.username)}</span></div><div class="jt">${esc(teamLabel(teamById(u.teamId)) || u.propertyCode)} · ${esc(u.jobTitle || '—')}</div></div>
+      <div class="acts"><button class="btn sm gray" data-act="declineUser" data-id="${u.id}">Decline</button><button class="btn sm primary" data-act="approveUser" data-id="${u.id}">Approve</button></div></div>`).join('')}</div>` : ''}
     <label class="search" style="width:auto;height:44px;margin:0 4px 10px">${ic('search', 's')}<input id="pp-q" type="search" placeholder="Search name, username, team or job title" value="${esc(S.pq || '')}" data-input="peopleSearch" autocomplete="off"></label>
     <div class="filters pp-f" style="margin:0 4px 6px;justify-content:flex-start;flex-wrap:wrap">
       <button class="pill flt ${S.ppProp && S.ppProp !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppProp">${ic('building', 's')}${esc(lbl(S.ppProp, 'All Properties', v => v))}${ic('chevD', 'xs')}</button>
@@ -3229,7 +3231,7 @@ const ACT = {
     if (v === 'search') setTimeout(() => $('#q2') && $('#q2').focus(), 80);
   },
   back() { nav(() => { S.view = S.view === 'project' ? 'projects' : 'home'; S.q = ''; }, 'pop'); },
-  goRequests() { nav(() => { S.view = 'team'; S.teamTab = 'requests'; }); },
+  goRequests() { nav(() => { if (isAdminU()) { S.view = 'people'; } else { S.view = 'team'; S.teamTab = 'requests'; } }); },
   myFilter(el) { const same = S.view === 'mytasks'; nav(() => { S.view = 'mytasks'; S.myFilter = el.dataset.f; }, same ? '' : 'tab'); },
   teamTab(el) { S.teamTab = el.dataset.t; render(); },
   actTab(el) { S.actTab = el.dataset.t; render(); },
