@@ -102,9 +102,10 @@ svg.i.s{width:16px;height:16px} svg.i.xs{width:13px;height:13px;stroke-width:2.3
 .seg{display:inline-flex;background:var(--fill-3);border-radius:999px;padding:2px;max-width:100%;overflow-x:auto;scrollbar-width:none;position:relative;flex:none}
 .seg::-webkit-scrollbar{display:none}
 .seg button{position:relative;z-index:1;height:32px;padding:0 14px;border-radius:999px;font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;letter-spacing:-.15px;
-  display:inline-flex;align-items:center;gap:6px;transition:background .2s}
-.seg button.on{background:var(--seg-on);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
-.seg button.on.seg-hold{background:transparent;box-shadow:none}
+  display:inline-flex;align-items:center;gap:6px;transition:color .2s}
+.seg button.on{background:var(--seg-on);box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+.seg.has-ind>button.on{background:transparent;box-shadow:none}
+.seg-ind{position:absolute;z-index:0;border-radius:999px;background:var(--seg-on);box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);pointer-events:none}
 .seg-ghost{position:absolute;z-index:0;border-radius:999px;background:var(--seg-on);box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);pointer-events:none}
 .seg .count{font-size:11px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;display:inline-grid;place-items:center;padding:0 5px;font-weight:700}
 .input{display:block;width:100%;height:50px;padding:0 16px;border-radius:14px;border:0;background:var(--surface);font-size:17px;outline:none;color:var(--text)}
@@ -4027,18 +4028,25 @@ const Motion = (() => {
   /* Segmented controls: the selected pill glides from the old choice to the new one. */
   const segPos = {};
   const rectIn = b => ({ left: b.offsetLeft, top: b.offsetTop, width: b.offsetWidth, height: b.offsetHeight });
-  function morphSegs(root) {
-    $$('.seg[id]', root).forEach(box => {
-      const on = $(':scope > .on', box); if (!on) return;
-      const to = rectIn(on), from = segPos[box.id]; segPos[box.id] = to;
-      if (!from || reduce || (Math.abs(from.left - to.left) < 1 && Math.abs(from.width - to.width) < 1)) return;
-      const ghost = document.createElement('span'); ghost.className = 'seg-ghost';
-      const px = r => ({ left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
-      Object.assign(ghost.style, px(to)); box.appendChild(ghost); on.classList.add('seg-hold');
-      const a = ghost.animate([px(from), px(to)], { duration: 550, easing: GLIDE });
-      a.onfinish = a.oncancel = () => { ghost.remove(); on.classList.remove('seg-hold'); };
-    });
+  /* One persistent pill per control: it never disappears, it only slides to the chosen option. */
+  const px = r => ({ left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  function segSync(box, from) {
+    const on = $(':scope > .on', box); if (!on) return;
+    let ind = $(':scope > .seg-ind', box);
+    if (!ind) { ind = document.createElement('span'); ind.className = 'seg-ind'; box.prepend(ind); box.classList.add('has-ind'); }
+    const to = rectIn(on);
+    if (!from && ind.dataset.at) from = JSON.parse(ind.dataset.at);
+    Object.assign(ind.style, px(to)); ind.dataset.at = JSON.stringify(to);
+    if (box.id) segPos[box.id] = to;
+    if (from && !reduce && (Math.abs(from.left - to.left) > 0.5 || Math.abs(from.width - to.width) > 0.5))
+      ind.animate([px(from), px(to)], { duration: 480, easing: GLIDE });
   }
+  M.segSync = segSync;
+  function morphSegs(root) { $$('.seg', root).forEach(box => segSync(box, box.id ? segPos[box.id] : null)); }
+  // segments inside dialogs change in place: slide the pill after the click updates the choice
+  document.addEventListener('click', e => { const box = e.target.closest && e.target.closest('.seg'); if (box) setTimeout(() => { if (box.isConnected) segSync(box); }, 0); });
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) $$('.seg', n).forEach(b => { if (!$(':scope > .seg-ind', b)) segSync(b, b.id ? segPos[b.id] : null); }); })))
+    .observe(document.body, { childList: true, subtree: true });
   let io = null;
   function observeReveal(page) {
     if (reduce || !('IntersectionObserver' in window)) return;
