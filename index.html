@@ -872,9 +872,16 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .wl-fbtn{position:relative;flex:none}
 .wl-fbtn.on{background:var(--accent-soft);color:var(--accent)}
 .fb-n{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
-.wlf .sec-h{width:100%}
+.wlf .sec-h{display:flex;width:calc(100% - 16px);box-sizing:border-box;margin-left:8px;margin-right:8px;padding-right:6px}
+.wlf .sec-h .cur{font-weight:500;color:var(--text-2);font-size:15px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wlf .sec-h .sp{flex:1}
 @media (max-width:1023px){ .wl-ctl{display:none} }
+
+.hdr-ics{gap:10px;align-items:center}
+@media (max-width:1023px){
+  .desk-only-c{display:none!important}
+  .mob-only.hdr-ics{display:inline-flex}
+}
 
 </style>
 </head>
@@ -2598,10 +2605,13 @@ function teamHtml() {
     body += `<div class="section-title">Invite People</div><div class="menu"><div class="li" style="align-items:flex-start;padding:14px 16px"><span class="ico" style="background:var(--accent)">${ic('key')}</span>
       <div class="lbl"><div style="font-weight:600">Share the app link and your property code</div><div class="sub" style="font-size:15px;margin-top:2px;letter-spacing:-.23px">New people enter property code <b class="tnum">${esc(me().propertyCode)}</b>, choose <b>${esc(myTeam ? myTeam.name : 'their team')}</b>, then pick a username and 4-digit PIN. ${canApprove ? 'You approve them under Requests.' : 'Your department head approves them.'}</div></div></div></div>`;
   }
-  const addBtn = `<button class="btn sm gray mob-only" data-act="go" data-v="workload" aria-label="Workload" title="Workload" style="margin:0 0 0 auto;width:36px;padding:0;place-items:center">${ic('chart', 's')}</button>` + (canApprove ? `<button class="btn primary sm" data-act="addMember" style="margin:0 4px 0 8px">${ic('personPlus', 's')}Add Member</button>` : '');
-  return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'Everyone across all properties' : 'Everyone in your teams') : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p>${scopePill()}
+  const fOn = (S.teamProp !== 'all' ? 1 : 0) + (S.teamDept !== 'all' ? 1 : 0);
+  // phones: three round icons (Workload, Add Member, Filter); desktop keeps the labelled button
+  const addBtn = `<div class="mob-only hdr-ics"><button class="circle sm" data-act="go" data-v="workload" aria-label="Workload">${ic('chart')}</button>${canApprove ? `<button class="circle sm" data-act="addMember" aria-label="Add Member">${ic('personPlus')}</button>` : ''}<button class="circle sm wl-fbtn ${fOn ? 'on' : ''}" data-act="scopeFilters" aria-label="Filters">${ic('filter')}${fOn ? `<span class="fb-n">${fOn}</span>` : ''}</button></div>`
+    + (canApprove ? `<button class="btn primary sm desk-only" data-act="addMember" style="margin:0 4px 0 auto">${ic('personPlus', 's')}Add Member</button>` : '');
+  return `<div style="display:flex;align-items:flex-end;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Team</h1>${addBtn}</div><p class="lt-sub">${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'Everyone across all properties' : 'Everyone in your teams') : teamLabel(teamById(S.scope))) : teamLabel(myTeam))}</p><div class="home-desk">${scopePill()}</div>
     <div class="ctl-row">${canApprove ? `<div class="seg" id="seg-team"><button class="${tab === 'members' ? 'on' : ''}" data-act="teamTab" data-t="members">Members</button><button class="${tab === 'requests' ? 'on' : ''}" data-act="teamTab" data-t="requests">Requests${pend.length ? `<span class="count">${pend.length}</span>` : ''}</button></div>` : ''}
-      ${showFilters && tab === 'members' ? filterPills() : ''}</div>${body}`;
+      <span class="desk-only-c">${showFilters && tab === 'members' ? filterPills() : ''}</span></div>${body}`;
 }
 
 function filterPills() {
@@ -2660,7 +2670,7 @@ function workloadHtml() {
 
   const wlOn = (S.scope !== 'all' ? 1 : 0) + (per !== 'week' ? 1 : 0) + (S.teamProp !== 'all' ? 1 : 0) + (S.teamDept !== 'all' ? 1 : 0);
   return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Workload</h1>
-      <button class="circle sm mob-only wl-fbtn ${wlOn ? 'on' : ''}" data-act="wlFilters" aria-label="Filters">${ic('filter')}${wlOn ? `<span class="fb-n">${wlOn}</span>` : ''}</button></div>
+      <button class="circle sm mob-only wl-fbtn ${wlOn ? 'on' : ''}" data-act="scopeFilters" data-period="1" aria-label="Filters">${ic('filter')}${wlOn ? `<span class="fb-n">${wlOn}</span>` : ''}</button></div>
     <p class="lt-sub">How open work is shared across ${people.length} ${people.length === 1 ? 'person' : 'people'}${teams.length > 1 ? ' in ' + teams.length + ' teams' : ''}${per !== 'week' ? ' · ' + perLabel : ''}.</p><div class="home-desk">${scopePill()}</div>
     <div class="ctl-row wl-ctl"><div class="seg" id="seg-wl">${[['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']].map(([k, l]) => `<button class="${per === k ? 'on' : ''}" data-act="wlPeriod" data-p="${k}">${l}</button>`).join('')}</div>${teams.length > 1 || S.teamProp !== 'all' || S.teamDept !== 'all' ? filterPills() : ''}</div>
     <div class="wl-stats">${stat(open.length, 'Open tasks', 'blue', soon.length + ' due in 7 days')}${stat(overdue.length, 'Overdue', overdue.length ? 'red' : 'gray', open.length ? Math.round(overdue.length / open.length * 100) + '% of open' : '')}
@@ -3149,27 +3159,29 @@ const ACT = {
         ...names.map(n => ({ label: n, checked: S.teamDept === n, onClick: () => { S.teamDept = n; render(); } }))]);
     }
   },
-  /* Workload on phones: one Filters button → sheet with accordion sections (period, teams, property, department). */
-  wlFilters() {
+  /* Phones (Workload, Team): one Filters button → sheet with accordion sections: Property, Department, (Period). */
+  scopeFilters(el) {
+    const withPeriod = !!el.dataset.period;
     const body = () => {
-      const mine = myTeamIds(), teams = mine.map(teamById).filter(Boolean);
-      const codes = [...new Set(teams.map(t => t.propertyCode))], depts = [...new Set(teams.filter(t => S.teamProp === 'all' || t.propertyCode === S.teamProp).map(t => t.name))].sort();
+      const teams = myTeamIds().map(teamById).filter(Boolean);
+      const codes = [...new Set(teams.map(t => t.propertyCode))];
+      const depts = [...new Set(teams.filter(t => S.teamProp === 'all' || t.propertyCode === S.teamProp).map(t => t.name))].sort();
       const opt = (k, v, l, on) => `<button class="li" data-wf="${k}" data-v="${esc(v)}"><span class="lbl">${esc(l)}</span>${on ? `<span class="val" style="color:var(--accent)">${ic('check', 's')}</span>` : ''}</button>`;
-      const per = S.wlPeriod || 'week';
-      const sec = (k, title, cur, rows) => { const o = accOpen('wlf', k, 'period'); return `<button class="sec-h ${o ? '' : 'closed'}" data-act="acc" data-g="wlf" data-k="${k}" aria-expanded="${o}">${ic('chevD', 's')}${esc(title)}<span class="sp"></span><span class="n" style="font-weight:500">${esc(cur)}</span></button>${accPanel('wlf', k, o, `<div class="menu">${rows}</div>`)}`; };
-      const PER = [['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']];
-      return sec('period', 'Period', PER.find(x => x[0] === per)[1], PER.map(([v, l]) => opt('period', v, l, per === v)).join(''))
-        + (multiScope() ? sec('team', 'Teams', S.scope === 'all' ? 'All' : teamLabel(teamById(S.scope)), opt('team', 'all', isAdminU() ? 'All Teams' : 'All My Teams', S.scope === 'all') + teams.map(t => opt('team', t.id, teamLabel(t), S.scope === t.id)).join('')) : '')
-        + (codes.length > 1 ? sec('prop', 'Property', S.teamProp === 'all' ? 'All' : S.teamProp, opt('prop', 'all', 'All Properties', S.teamProp === 'all') + codes.map(c => opt('prop', c, c + ((propByCode(c) || {}).name ? ' · ' + propByCode(c).name : ''), S.teamProp === c)).join('')) : '')
-        + sec('dept', 'Department', S.teamDept === 'all' ? 'All' : S.teamDept, opt('dept', 'all', 'All Departments', S.teamDept === 'all') + depts.map(d => opt('dept', d, d, S.teamDept === d)).join(''));
+      const per = S.wlPeriod || 'week', PER = [['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']];
+      const sec = (k, title, cur, rows) => { const o = accOpen('wlf', k, 'prop'); return `<button class="sec-h ${o ? '' : 'closed'}" data-act="acc" data-g="wlf" data-k="${k}" aria-expanded="${o}">${ic('chevD', 's')}${esc(title)}<span class="sp"></span><span class="cur">${esc(cur)}</span></button>${accPanel('wlf', k, o, `<div class="menu">${rows}</div>`)}`; };
+      return sec('prop', 'Property', S.teamProp === 'all' ? 'All' : S.teamProp, opt('prop', 'all', 'All Properties', S.teamProp === 'all') + codes.map(c => opt('prop', c, c + ((propByCode(c) || {}).name ? ' · ' + propByCode(c).name : ''), S.teamProp === c)).join(''))
+        + sec('dept', 'Department', S.teamDept === 'all' ? 'All' : S.teamDept, opt('dept', 'all', 'All Departments', S.teamDept === 'all') + depts.map(d => opt('dept', d, d, S.teamDept === d)).join(''))
+        + (withPeriod ? sec('period', 'Period', PER.find(x => x[0] === per)[1], PER.map(([v, l]) => opt('period', v, l, per === v)).join('')) : '');
     };
+    // these filters cover every team you belong to, so start from all teams
+    if (S.scope !== 'all') { S.scope = 'all'; store.set('orbit_scope', 'all'); render({ soft: true }); }
     openDialog({ title: 'Filters', ok: 'Done', cancel: 'Reset', body: `<div class="wlf">${body()}</div>`, onOk: () => true,
       onOpen: root => {
-        $('.sh-h .l', root).onclick = e => { e.stopPropagation(); S.wlPeriod = 'week'; S.teamProp = S.teamDept = 'all'; S.scope = 'all'; store.set('orbit_scope', 'all'); $('.wlf', root).innerHTML = body(); render({ soft: true }); };
+        $('.sh-h .l', root).onclick = e => { e.stopPropagation(); if (withPeriod) S.wlPeriod = 'week'; S.teamProp = S.teamDept = 'all'; $('.wlf', root).innerHTML = body(); render({ soft: true }); };
         $('.wlf', root).addEventListener('click', e => {
           const h = e.target.closest('[data-act="acc"]'); if (h) { ACT.acc(h); return; } // dialogs don't use the page's click router
           const b = e.target.closest('[data-wf]'); if (!b) return; const k = b.dataset.wf, v = b.dataset.v; Motion.haptic();
-          if (k === 'period') S.wlPeriod = v; else if (k === 'team') { S.scope = v; store.set('orbit_scope', v); } else if (k === 'prop') { S.teamProp = v; S.teamDept = 'all'; } else S.teamDept = v;
+          if (k === 'period') S.wlPeriod = v; else if (k === 'prop') { S.teamProp = v; S.teamDept = 'all'; } else S.teamDept = v;
           $('.wlf', root).innerHTML = body(); render({ soft: true });
         });
       } });
