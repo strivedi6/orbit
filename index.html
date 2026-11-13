@@ -910,6 +910,13 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .controls .sp{display:block}
 }
 
+/* main admin dashboard */
+.adm-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.adm-stats .wl-stat{text-align:left;align-items:flex-start;transition:transform .2s var(--spring),background .2s}
+.adm-stats button.wl-stat:active{transform:scale(.97)}
+.adm-prop .plogo{width:34px;height:34px;flex:none}
+@media (max-width:1023px){ .adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
 </style>
 </head>
 <body>
@@ -1062,6 +1069,17 @@ function publicUser(u) {
     approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', teamIds: Array.isArray(u.teamIds) ? u.teamIds : [], photoV: u.photo ? String(u.photoV || '1') : '' };
 }
 function isAdmin(u) { return u.role === 'admin'; }
+/* For the main admin: account state that isn't otherwise shared (locks, signed-in devices, last active). */
+function adminInfo(DB) {
+  var info = {}, now = Date.now(), sessions = DB.all('sessions'), cut = now - 90 * 864e5, stale = 0;
+  DB.all('users').forEach(function (x) { info[x.id] = { locked: !!(x.lockedUntil && new Date(x.lockedUntil).getTime() > now), failed: Number(x.failed) || 0, devices: 0, lastSeen: '' }; });
+  sessions.forEach(function (s) {
+    var i = info[s.userId]; if (!i) { stale++; return; }
+    var seen = s.lastSeen || s.createdAt; if (new Date(seen).getTime() < cut) stale++;
+    i.devices++; if (!i.lastSeen || seen > i.lastSeen) i.lastSeen = seen;
+  });
+  return { users: info, sessions: sessions.length, staleSessions: stale };
+}
 /* A person's teams: their home team plus any extra teams (cluster colleagues working across properties). */
 function userTeams(u) {
   var l = [u.teamId];
@@ -1099,6 +1117,8 @@ function auth(DB, token) {
   if (!s) fail('AUTH');
   var u = DB.get('users', s.userId);
   if (!u || u.status !== 'active') fail('AUTH');
+  // remember when each device was last used (at most every 30 minutes, to keep writes low)
+  if (!s.lastSeen || Date.now() - new Date(s.lastSeen).getTime() > 30 * 60000) DB.update('sessions', s.id, { lastSeen: nowISO() });
   return u;
 }
 function log(DB, u, teamId, type, refId, text, targets) {
@@ -1198,6 +1218,7 @@ var ACTIONS = {
       projects: projects, tasks: tasks,
       comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
       activity: activity,
+      admin: admin ? adminInfo(DB) : null,
       serverTime: nowISO()
     };
   },
@@ -1480,6 +1501,48 @@ var ACTIONS = {
     DB.insert('users', nu);
     log(DB, u, team.id, 'approved', nu.id, 'added ' + name + ' to ' + team.name, [nu.id]);
     return publicUser(nu);
+  },
+
+  /* ---------- main admin tools ---------- */
+  unlockUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId);
+    if (!target) fail('That person no longer exists.');
+    if (!isAdmin(u) && !canManageTeam(u, target.teamId)) fail('You can’t unlock this account.');
+    DB.update('users', target.id, { failed: 0, lockedUntil: '' });
+    return { ok: true };
+  },
+  signOutUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId);
+    if (!target) fail('That person no longer exists.');
+    if (!isAdmin(u) && !canManageTeam(u, target.teamId)) fail('You can’t sign this person out.');
+    var n = 0;
+    DB.all('sessions').filter(function (s) { return s.userId === target.id && s.id !== r.token; }).forEach(function (s) { DB.remove('sessions', s.id); n++; });
+    return { ok: true, count: n };
+  },
+  /* Repairs for data that went out of shape (deleted teams, renamed stages, removed projects). Main admin only. */
+  fixData: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can do this.');
+    var n = 0, team = r.teamId ? DB.get('teams', r.teamId) : null;
+    if (r.kind === 'orphanProjects') {
+      if (!team) fail('Choose a team.');
+      DB.all('projects').filter(function (p) { return !DB.get('teams', p.teamId); }).forEach(function (p) { DB.update('projects', p.id, { teamId: team.id, updatedAt: nowISO() }); n++; });
+    } else if (r.kind === 'homelessUsers') {
+      if (!team) fail('Choose a team.');
+      DB.all('users').filter(function (x) { return !DB.get('teams', x.teamId); }).forEach(function (x) { DB.update('users', x.id, { teamId: team.id, propertyCode: team.propertyCode }); n++; });
+    } else if (r.kind === 'orphanTasks') {
+      DB.all('tasks').filter(function (t) { return t.projectId && !DB.get('projects', t.projectId); }).forEach(function (t) { DB.update('tasks', t.id, { projectId: '', updatedAt: nowISO() }); n++; });
+      DB.all('tasks').filter(function (t) { return t.parentId && !DB.get('tasks', t.parentId); }).forEach(function (t) { DB.update('tasks', t.id, { parentId: '', updatedAt: nowISO() }); n++; });
+    } else if (r.kind === 'badStatus') {
+      DB.all('tasks').forEach(function (t) {
+        var parent = t.parentId ? DB.get('tasks', t.parentId) : null, p = t.projectId ? DB.get('projects', t.projectId) : null;
+        var list = parent ? stagesOf({ stages: parent.subStages }) : stagesOf(p), ids = list.map(function (s) { return s.id; });
+        if (ids.indexOf(t.status) < 0) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); n++; }
+      });
+    } else if (r.kind === 'staleSessions') {
+      var cut = Date.now() - 90 * 864e5;
+      DB.all('sessions').filter(function (s) { return !DB.get('users', s.userId) || new Date(s.lastSeen || s.createdAt).getTime() < cut; }).forEach(function (s) { DB.remove('sessions', s.id); n++; });
+    } else fail('Unknown repair.');
+    return { ok: true, count: n };
   },
 
   removeUser: function (DB, r) {
@@ -2298,11 +2361,14 @@ function sidebarHtml() {
     <div class="sb-head">${cluster ? '' : plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${esc(cluster ? codes.join(' · ') : CONFIG.APP_NAME + ' · ' + (isAdminU() ? 'Main Admin' : teamLabel(teamById(m.teamId))))}</div></div></div>
     ${multiScope() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
     <div class="sb-nav">
-      ${nav('home', 'home', 'Home')}
+      ${isAdminU() ? `${nav('home', 'home', 'Dashboard')}
+      ${nav('people', 'people', 'People', pend ? `<span class="badge">${pend}</span>` : '')}
+      ${nav('activity', 'bell', 'Activity')}
+      <button class="sb-item" data-act="orgOpen">${ic('building')}<span class="lbl">Properties &amp; Teams</span></button>` : `${nav('home', 'home', 'Home')}
       ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
       ${nav('activity', 'bell', 'Activity')}
       ${nav('team', 'people', 'Team', pend ? `<span class="badge">${pend}</span>` : '')}
-      ${nav('workload', 'chart', 'Workload')}
+      ${nav('workload', 'chart', 'Workload')}`}
     </div>
     <div class="sb-sec"><button class="sb-tog ${SBC._all ? 'closed' : ''}" data-act="sbToggle" data-k="_all" aria-expanded="${!SBC._all}">${ic('chevD', 'xs')}<span>Projects</span>${SBC._all ? `<span class="n">${projects().length}</span>` : ''}</button><button class="circle sm" style="width:26px;height:26px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
     <div class="sb-nav" ${SBC._all ? 'hidden' : ''}>
@@ -2326,12 +2392,16 @@ function updateSyncUI() {
 }
 
 /* ---------------- floating tab bar (phones) — stays on screen so the pill can glide ---------------- */
-const TABS = ['home', 'mytasks', 'projects', 'team'];
+let TABS = ['home', 'mytasks', 'projects', 'team'];
 function renderTabs() {
   const root = $('#tabroot');
   if (!Session.token || !S.data) { root.innerHTML = ''; return; }
+  const kind = isAdminU() ? 'admin' : 'user';
+  if (root.dataset.kind !== kind) { root.innerHTML = ''; root.dataset.kind = kind; }
+  TABS = kind === 'admin' ? ['home', 'people', 'projects', 'activity'] : ['home', 'mytasks', 'projects', 'team'];
   if (!$('.tabbar', root)) {
-    const L = { home: ['Home', 'home'], mytasks: ['My Tasks', 'mytasks'], projects: ['Projects', 'folder'], team: ['Team', 'people'] };
+    const L = kind === 'admin' ? { home: ['Dashboard', 'home'], people: ['People', 'people'], projects: ['Projects', 'folder'], activity: ['Activity', 'bell'] }
+      : { home: ['Home', 'home'], mytasks: ['My Tasks', 'mytasks'], projects: ['Projects', 'folder'], team: ['Team', 'people'] };
     root.innerHTML = `<div class="tab-fade"></div><div class="tabdock"><nav class="tabbar glass"><span class="tab-pill"></span>${TABS.map(t => `<button class="tab" data-act="go" data-v="${t}" data-tab="${t}">${ic(L[t][1])}<span>${L[t][0]}</span></button>`).join('')}</nav>
       <button class="fab glass" id="fab" aria-label="New">${ic('plus')}</button></div>`;
   }
@@ -2339,7 +2409,7 @@ function renderTabs() {
   const i = TABS.indexOf(cur);
   $$('.tab', root).forEach(b => {
     b.classList.toggle('on', b.dataset.tab === cur);
-    const n = b.dataset.tab === 'team' ? pendingUsers().length : 0;
+    const n = b.dataset.tab === 'team' || b.dataset.tab === 'people' ? pendingUsers().length : 0;
     let bd = $('.badge', b); if (n) { if (!bd) { bd = document.createElement('span'); bd.className = 'badge'; b.appendChild(bd); } bd.textContent = n; } else if (bd) bd.remove();
   });
   const pill = $('.tab-pill', root);
@@ -2349,12 +2419,12 @@ function renderTabs() {
     pill.style.transform = 'translateX(' + (i * 100) + '%)'; Motion.pillIdx = i;
   }
   const fab = $('#fab');
-  fab.dataset.act = 'fabMenu'; // phones: choose New Task or New Project
+  fab.dataset.act = isAdminU() ? 'adminFab' : 'fabMenu'; // phones: choose New Task or New Project (admin: people / organisation)
   fab.setAttribute('aria-label', 'New');
 }
 
 /* ---------------- navbar ---------------- */
-const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', workload: 'Workload', settings: 'Settings', activity: 'Activity', search: 'Search' };
+const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', people: 'People', workload: 'Workload', settings: 'Settings', activity: 'Activity', search: 'Search' };
 function navbarHtml() {
   const p = S.view === 'project' ? projById(S.projectId) : null;
   const title = p ? esc(p.name) : TITLES[S.view] || '';
@@ -2367,7 +2437,8 @@ function navbarHtml() {
       <span class="circle sync-ic mob-only" id="syncic" data-s="${Outbox.state}" ${Outbox.state === 'idle' ? 'hidden' : ''}>${ic('cloud')}</span>
       <label class="search desk-only">${ic('search', 's')}<input id="q" type="search" placeholder="Search" value="${esc(S.q)}" data-input="search" aria-label="Search tasks, projects and people"></label>
       <button class="circle glass mob-only" data-act="go" data-v="search" aria-label="Search">${ic('search')}</button>
-      ${S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary sm desk-only" data-act="${newAct}">${ic('plus', 's')}<span>${S.view === 'projects' ? 'New Project' : 'New Task'}</span></button>` : ''}
+      ${isAdminU() ? `<button class="btn primary sm desk-only" data-act="addMember">${ic('personPlus', 's')}<span>Add Person</span></button>` : ''}
+      ${!isAdminU() && S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary sm desk-only" data-act="${newAct}">${ic('plus', 's')}<span>${S.view === 'projects' ? 'New Project' : 'New Task'}</span></button>` : ''}
     </div>
   </div>`;
 }
@@ -2376,7 +2447,8 @@ function navbarHtml() {
 function viewHtml() {
   if (S.q && S.view !== 'search') return searchResultsHtml(S.q);
   switch (S.view) {
-    case 'home': return homeHtml();
+    case 'home': return isAdminU() ? adminHomeHtml() : homeHtml();
+    case 'people': return peopleHtml();
     case 'mytasks': return myTasksHtml();
     case 'projects': return projectsHtml();
     case 'project': return projectHtml();
@@ -2401,6 +2473,80 @@ function scopeDuo() {
   return `<div class="mob-flt home-flt">
     <button class="pill flt" ${multi ? 'data-act="homeScope" data-k="prop"' : 'disabled'}>${ic('building', 's')}<span>${esc(pLabel)}</span>${multi ? ic('chevD', 'xs') : ''}</button>
     <button class="pill flt" ${multi ? 'data-act="homeScope" data-k="team"' : 'disabled'}>${ic('people', 's')}<span>${esc(tLabel)}</span>${multi ? ic('chevD', 'xs') : ''}</button></div>`;
+}
+
+/* ---------------- main admin: dashboard and people ---------------- */
+function adminState() {
+  const A = D().admin || { users: {}, sessions: 0, staleSessions: 0 }, info = id => A.users[id] || { locked: false, failed: 0, devices: 0, lastSeen: '' };
+  const users = D().users, teams = D().teams, props = D().properties, projs = D().projects, tasks = D().tasks;
+  const teamIds = new Set(teams.map(t => t.id)), projIds = new Set(projs.map(p => p.id)), taskIds = new Set(tasks.map(t => t.id));
+  const badStatus = tasks.filter(t => { const ids = stagesForTask(t).map(s => s.id); return !ids.includes(t.status); });
+  return { A, info, users, teams, props, projs, tasks,
+    pending: users.filter(u => u.status === 'pending'), locked: users.filter(u => info(u.id).locked), off: users.filter(u => u.status === 'disabled'),
+    active: users.filter(u => u.status === 'active'),
+    issues: [
+      { kind: 'orphanProjects', n: projs.filter(p => !teamIds.has(p.teamId)).length, t: ['project without a team', 'projects without a team'], d: 'Their team was deleted. Move them to a team.', team: true },
+      { kind: 'homelessUsers', n: users.filter(u => !teamIds.has(u.teamId)).length, t: ['person without a team', 'people without a team'], d: 'Their team was deleted. Move them to a team.', team: true },
+      { kind: 'orphanTasks', n: tasks.filter(t => (t.projectId && !projIds.has(t.projectId)) || (t.parentId && !taskIds.has(t.parentId))).length, t: ['task pointing to a deleted item', 'tasks pointing to deleted items'], d: 'Their project or parent task is gone. Keep them as standalone tasks.' },
+      { kind: 'badStatus', n: badStatus.length, t: ['task in a stage that no longer exists', 'tasks in a stage that no longer exists'], d: 'Move them to the first stage of their project.' },
+      { kind: 'staleSessions', n: A.staleSessions || 0, t: ['old sign-in', 'old sign-ins'], d: 'Devices unused for 90 days, or for removed people. Sign them out.' }
+    ].filter(x => x.n) };
+}
+function lastSeenText(iso) { if (!iso) return 'Never signed in'; const m = (Date.now() - new Date(iso)) / 60000; return m < 45 ? 'Active now' : 'Active ' + ago(iso) + ' ago'; }
+function adminHomeHtml() {
+  const m = me(), h = new Date().getHours(), st = adminState();
+  const greet = h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const openT = st.tasks.filter(t => !isDone(t)), overT = openT.filter(t => t.due && t.due < todayStr());
+  const liveP = st.projs.filter(p => !p.archived);
+  const stat = (n, label, color, sub, act) => `<button class="wl-stat" ${act || ''}><span class="num tnum" data-count style="color:${cvar(color)}">${n}</span><span class="nm">${label}</span>${sub ? `<span class="ws">${sub}</span>` : ''}</button>`;
+  const attention = [
+    ...(st.pending.length ? [`<button class="li" data-act="goRequests" style="--inset:58px"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span><span class="lbl"><b>${st.pending.length} waiting for approval</b><div class="sub">${esc(st.pending.slice(0, 4).map(u => u.name).join(', '))}</div></span><span class="chev faint">${ic('chevR', 's')}</span></button>`] : []),
+    ...st.locked.map(u => `<div class="li" style="--inset:58px"><span class="ico" style="background:var(--red);border-radius:50%">${ic('lock')}</span><span class="lbl"><b>${esc(u.name)}</b> is locked out<div class="sub">${st.info(u.id).failed} wrong PINs · ${esc(teamLabel(teamById(u.teamId)) || u.propertyCode)}</div></span><button class="btn sm" data-act="adminUnlock" data-id="${u.id}">Unlock</button></div>`),
+    ...st.issues.map(x => `<div class="li" style="--inset:58px"><span class="ico" style="background:var(--indigo);border-radius:50%">${ic('alert')}</span><span class="lbl"><b>${x.n} ${esc(x.t[x.n === 1 ? 0 : 1])}</b><div class="sub">${esc(x.d)}</div></span><button class="btn sm" data-act="adminFix" data-k="${x.kind}" data-team="${x.team ? 1 : ''}">Fix</button></div>`)];
+  const recent = st.users.filter(u => st.info(u.id).lastSeen).sort((a, b) => st.info(b.id).lastSeen < st.info(a.id).lastSeen ? -1 : 1).slice(0, 6);
+  const newcomers = st.users.filter(u => u.createdAt && Date.now() - new Date(u.createdAt) < 14 * 864e5).sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).slice(0, 6);
+  const personLi = (u, sub) => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}</div><div class="jt">${esc(sub)}</div></div><span class="chev faint">${ic('chevR', 's')}</span></button>`;
+  return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
+    <p class="lt-sub">Main admin · ${st.props.length} ${st.props.length === 1 ? 'property' : 'properties'}, ${st.teams.length} teams, ${st.active.length} people</p></div>
+    <div class="wl-stats adm-stats">
+      ${stat(st.props.length, 'Properties', 'blue', st.teams.length + ' teams', 'data-act="orgOpen"')}
+      ${stat(st.active.length, 'People', 'green', st.off.length ? st.off.length + ' turned off' : 'all active', 'data-act="go" data-v="people"')}
+      ${stat(st.pending.length, 'Waiting', st.pending.length ? 'orange' : 'gray', 'for approval', 'data-act="goRequests"')}
+      ${stat(st.locked.length, 'Locked Out', st.locked.length ? 'red' : 'gray', (st.A.sessions || 0) + ' signed-in devices')}
+      ${stat(liveP.length, 'Projects', 'indigo', st.projs.length - liveP.length + ' archived', 'data-act="go" data-v="projects"')}
+      ${stat(openT.length, 'Open Tasks', 'teal', overT.length + ' overdue')}
+    </div>
+    <div class="section-title">Needs Attention ${attention.length ? `<span class="n tnum">${attention.length}</span>` : ''}</div>
+    <div class="menu">${attention.length ? attention.join('') : `<div class="li" style="--inset:58px"><span class="ico" style="background:var(--green);border-radius:50%">${ic('check')}</span><span class="lbl">Everything looks good<div class="sub">No pending approvals, locked accounts or data problems.</div></span></div>`}</div>
+    <div class="section-title">Properties <span class="n tnum">${st.props.length}</span><span class="sp"></span><button class="link" data-act="orgOpen">Manage</button></div>
+    <div class="menu">${st.props.map(p => { const ts = st.teams.filter(t => t.propertyCode === p.code), ppl = st.active.filter(u => userTeamsC(u).some(id => ts.some(t => t.id === id))), pj = liveP.filter(x => ts.some(t => t.id === x.teamId));
+      return `<button class="li adm-prop" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p)}<span class="lbl"><b>${esc(p.code)}</b> · ${esc(p.name)}<div class="sub">${ts.length} ${ts.length === 1 ? 'team' : 'teams'} · ${ppl.length} people · ${pj.length} projects${ts.length ? ' — ' + esc(ts.map(t => t.name).join(', ')) : ''}</div></span><span class="chev faint">${ic('chevR', 's')}</span></button>`; }).join('')}</div>
+    ${recent.length ? `<div class="section-title">Recently Active</div><div class="menu">${recent.map(u => personLi(u, lastSeenText(st.info(u.id).lastSeen) + ' · ' + st.info(u.id).devices + (st.info(u.id).devices === 1 ? ' device' : ' devices'))).join('')}</div>` : ''}
+    ${newcomers.length ? `<div class="section-title">New in the Last 14 Days</div><div class="menu">${newcomers.map(u => personLi(u, (u.status === 'pending' ? 'Waiting for approval · ' : '') + (teamLabel(teamById(u.teamId)) || u.propertyCode))).join('')}</div>` : ''}`;
+}
+function peopleHtml() {
+  const st = adminState(), q = (S.pq || '').trim().toLowerCase();
+  const stOf = u => u.status === 'pending' ? 'pending' : u.status === 'disabled' ? 'off' : st.info(u.id).locked ? 'locked' : 'active';
+  const list = st.users.filter(u => (S.ppProp === 'all' || !S.ppProp || u.propertyCode === S.ppProp || userTeamsC(u).some(id => (teamById(id) || {}).propertyCode === S.ppProp))
+    && (!S.ppRole || S.ppRole === 'all' || u.role === S.ppRole) && (!S.ppStatus || S.ppStatus === 'all' || stOf(u) === S.ppStatus)
+    && (!q || (u.name + ' ' + u.username + ' ' + (u.jobTitle || '') + ' ' + teamLabel(teamById(u.teamId))).toLowerCase().includes(q)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const groups = {}; list.forEach(u => (groups[u.propertyCode] = groups[u.propertyCode] || []).push(u));
+  const chipFor = u => { const s = stOf(u); return s === 'pending' ? '' : s === 'locked' ? '<span class="chip" style="background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)">Locked</span>' : s === 'off' ? '<span class="chip">Turned Off</span>' : ''; };
+  const lbl = (v, all, map) => !v || v === 'all' ? all : map(v);
+  const filtered = (S.ppProp && S.ppProp !== 'all') || (S.ppRole && S.ppRole !== 'all') || (S.ppStatus && S.ppStatus !== 'all');
+  return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">People</h1>
+      <div class="mob-only hdr-ics"><button class="circle sm" data-act="addMember" aria-label="Add person">${ic('personPlus')}</button></div></div>
+    <p class="lt-sub">${st.users.length} accounts across ${st.props.length} ${st.props.length === 1 ? 'property' : 'properties'}</p>
+    <label class="search" style="width:auto;height:44px;margin:0 4px 10px">${ic('search', 's')}<input id="pp-q" type="search" placeholder="Search name, username, team or job title" value="${esc(S.pq || '')}" data-input="peopleSearch" autocomplete="off"></label>
+    <div class="filters pp-f" style="margin:0 4px 6px;justify-content:flex-start;flex-wrap:wrap">
+      <button class="pill flt ${S.ppProp && S.ppProp !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppProp">${ic('building', 's')}${esc(lbl(S.ppProp, 'All Properties', v => v))}${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.ppRole && S.ppRole !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppRole">${ic('person', 's')}${esc(lbl(S.ppRole, 'All Roles', v => ROLE[v]))}${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.ppStatus && S.ppStatus !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppStatus">${ic('check', 's')}${esc(lbl(S.ppStatus, 'Any Status', v => ({ active: 'Active', pending: 'Waiting', locked: 'Locked Out', off: 'Turned Off' })[v]))}${ic('chevD', 'xs')}</button>
+      ${filtered ? '<button class="link" data-act="ppFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}</div>
+    ${Object.keys(groups).length ? Object.keys(groups).sort().map(code => { const p = propByCode(code); return `<div class="section-title">${esc(code)}${p ? ' · ' + esc(p.name) : ''} <span class="n tnum">${groups[code].length}</span></div>
+      <div class="menu">${groups[code].map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)} <span class="faint" style="font-weight:400">@${esc(u.username)}</span></div><div class="jt">${esc(teamLabel(teamById(u.teamId)) || 'No team')}${u.jobTitle ? ' · ' + esc(u.jobTitle) : ''} · ${esc(lastSeenText(st.info(u.id).lastSeen))}</div></div>${chipFor(u)}<span class="rchips">${roleChip(u)}</span><span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>`; }).join('')
+      : `<div class="menu" style="margin-top:14px">${emptyState('people', 'gray', 'Nobody found', 'Try another search or clear the filters.')}</div>`}`;
 }
 
 function homeHtml() {
@@ -3215,6 +3361,25 @@ const ACT = {
         });
       } });
   },
+  /* ---------- main admin ---------- */
+  orgOpen() { orgDialog(); },
+  editProperty(el) { const p = propByCode(el.dataset.code); if (p) propertyDialog(p); },
+  adminFab(el) { openMenu(el, [{ label: 'Add Person', icon: ic('personPlus', 's'), onClick: () => addMemberDialog() }, { label: 'Properties & Teams', icon: ic('building', 's'), onClick: () => orgDialog() }]); },
+  async adminUnlock(el) { try { await run('unlockUser', { userId: el.dataset.id }, 'Account unlocked'); await sync({ soft: true, force: true }); } catch (e) { } },
+  async adminFix(el) {
+    const kind = el.dataset.k, needsTeam = !!el.dataset.team;
+    const go = async teamId => { try { const r = await run('fixData', { kind, teamId }); toast(r.count ? 'Fixed ' + r.count + (r.count === 1 ? ' item' : ' items') : 'Nothing to fix'); await sync({ soft: true, force: true }); } catch (e) { } };
+    if (!needsTeam) { if (await confirmBox({ title: 'Fix this now?', msg: (adminState().issues.find(x => x.kind === kind) || {}).d || '', ok: 'Fix' })) go(''); return; }
+    openDialog({ title: 'Move to a Team', ok: 'Move', body: `<div class="menu"><div class="li"><span class="lbl">Team</span><select class="sel" id="fx-team" aria-label="Team">${D().teams.map(t => `<option value="${t.id}">${esc(teamLabel(t))}</option>`).join('')}</select></div></div><p class="section-foot">Everything listed under this problem moves to the team you choose.</p>`,
+      onOk: async root => { await go($('#fx-team', root).value); return true; } });
+  },
+  ppFilter(el) {
+    const k = el.dataset.k, set = v => () => { S[k] = v; render({ soft: true }); };
+    if (k === 'clear') { S.ppProp = S.ppRole = S.ppStatus = 'all'; render({ soft: true }); return; }
+    if (k === 'ppProp') openMenu(el, [{ label: 'All Properties', checked: !S.ppProp || S.ppProp === 'all', onClick: set('all') }, '-', ...D().properties.map(p => ({ label: p.code + ' · ' + p.name, checked: S.ppProp === p.code, onClick: set(p.code) }))]);
+    else if (k === 'ppRole') openMenu(el, [['all', 'All Roles'], ['admin', ROLE.admin], ['head', ROLE.head], ['member', ROLE.member]].map(([v, l]) => ({ label: l, checked: (S.ppRole || 'all') === v, onClick: set(v) })));
+    else openMenu(el, [['all', 'Any Status'], ['active', 'Active'], ['pending', 'Waiting for Approval'], ['locked', 'Locked Out'], ['off', 'Turned Off']].map(([v, l]) => ({ label: l, checked: (S.ppStatus || 'all') === v, onClick: set(v) })));
+  },
   fabMenu(el) {
     openMenu(el, [{ label: 'New Task', icon: ic('mytasks', 's'), onClick: () => ACT.newTask(el) }, { label: 'New Project', icon: ic('folder', 's'), onClick: () => ACT.newProject(el) }]);
   },
@@ -3857,6 +4022,14 @@ function userDialog(u, approving) {
       <p class="section-foot">Department heads approve people, assign roles and manage their team.${isAdminU() ? ' Main admins see every team.' : ''}</p>
       ${isAdminU() ? `<div class="section-title">Team</div><div class="menu"><div class="li"><span class="lbl">Team</span><select class="sel" id="ud-team" aria-label="Team">${D().teams.map(t => `<option value="${t.id}" ${t.id === u.teamId ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div></div>` : ''}
       <div id="ud-share-box"></div>
+      ${!approving && isAdminU() ? (() => { const i = (D().admin || { users: {} }).users[u.id] || {}; return `<div class="section-title">Account</div><div class="menu">
+        <div class="li" style="--inset:16px"><span class="lbl">Sign-in</span><span class="val"><span>${esc(u.propertyCode)} · @${esc(u.username)}</span></span></div>
+        <div class="li" style="--inset:16px"><span class="lbl">Status</span><span class="val"><span style="color:${i.locked ? 'var(--red)' : u.status === 'disabled' ? 'var(--text-3)' : 'var(--green)'}">${i.locked ? 'Locked out (' + i.failed + ' wrong PINs)' : u.status === 'disabled' ? 'Turned off' : u.status === 'pending' ? 'Waiting for approval' : 'Active'}</span></span></div>
+        <div class="li" style="--inset:16px"><span class="lbl">Last active</span><span class="val"><span>${esc(lastSeenText(i.lastSeen))}</span></span></div>
+        <div class="li" style="--inset:16px"><span class="lbl">Signed-in devices</span><span class="val tnum"><span>${i.devices || 0}</span></span></div>
+        ${u.createdAt ? `<div class="li" style="--inset:16px"><span class="lbl">Joined</span><span class="val"><span>${esc(fmtDay(u.createdAt.slice(0, 10)))}${u.approvedBy && userById(u.approvedBy) ? ' · approved by ' + esc(firstName(userById(u.approvedBy).name)) : ''}</span></span></div>` : ''}
+        ${i.locked ? `<button class="li" data-local="unlock"><span class="ico" style="background:var(--green)">${ic('lock')}</span><span class="lbl">Unlock Account</span></button>` : ''}
+        ${i.devices && u.id !== me().id ? `<button class="li" data-local="signout"><span class="ico" style="background:var(--orange)">${ic('out')}</span><span class="lbl">Sign Out of All Devices</span></button>` : ''}</div>`; })() : ''}
       ${approving ? '' : `<div class="section-title">Access</div><div class="menu">
         <div class="li"><span class="ico" style="background:var(--blue)">${ic('lock')}</span><span class="lbl">Reset PIN</span><input class="input" id="ud-pin" type="password" inputmode="numeric" maxlength="4" placeholder="New PIN" style="width:110px;height:36px;font-size:15px" aria-label="New PIN"><button class="btn sm" data-local="pin">Set</button></div>
         <button class="li" data-local="toggle"><span class="ico" style="background:var(--gray)">${ic('power')}</span><span class="lbl">${u.status === 'disabled' ? 'Turn On Account' : 'Turn Off Account'}</span></button>
@@ -3876,6 +4049,8 @@ function userDialog(u, approving) {
       $$('[data-local]', root).forEach(b => b.onclick = async () => {
         const k = b.dataset.local;
         try {
+          if (k === 'unlock') { await run('unlockUser', { userId: u.id }, firstName(u.name) + ' can sign in again'); closeDialog(); sync({ soft: true, force: true }); }
+          if (k === 'signout') { const r = await run('signOutUser', { userId: u.id }); toast('Signed out of ' + (r.count || 0) + (r.count === 1 ? ' device' : ' devices')); closeDialog(); sync({ soft: true, force: true }); }
           if (k === 'pin') { await run('resetPin', { userId: u.id, pin: $('#ud-pin', root).value }, 'PIN reset for ' + firstName(u.name)); $('#ud-pin', root).value = ''; }
           if (k === 'toggle') { op({ action: 'updateUser', userId: u.id, patch: { status: u.status === 'disabled' ? 'active' : 'disabled' } }); closeDialog(); render(); toast(u.status === 'disabled' ? 'Account turned off' : 'Account turned on'); }
           if (k === 'remove') { if (!await confirmBox({ title: 'Remove ' + u.name + '?', msg: 'They’ll be signed out and lose access. Their tasks and comments stay.', ok: 'Remove', danger: true })) return;
@@ -4391,6 +4566,7 @@ document.addEventListener('change', e => { const t = e.target; if (t.dataset && 
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.input === 'search') { S.q = t.value.trim(); renderContent(); }
+  if (t.dataset.input === 'peopleSearch') { S.pq = t.value; const pos = t.selectionStart; renderContent(); const n = $('#pp-q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) { } } }
   if (t.dataset.input === 'search2') { S.q = t.value.trim(); const r = $('#results'); if (r) r.innerHTML = S.q ? searchResultsHtml(S.q, true) : ''; }
   if (t.classList.contains('ttl-edit') || t.id === 'cmt') autosize();
   if (t.id === 'cmt') mentionCheck(t);

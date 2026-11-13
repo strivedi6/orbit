@@ -284,6 +284,17 @@ function publicUser(u) {
     approvedBy: u.approvedBy || '', approvedAt: u.approvedAt || '', teamIds: Array.isArray(u.teamIds) ? u.teamIds : [], photoV: u.photo ? String(u.photoV || '1') : '' };
 }
 function isAdmin(u) { return u.role === 'admin'; }
+/* For the main admin: account state that isn't otherwise shared (locks, signed-in devices, last active). */
+function adminInfo(DB) {
+  var info = {}, now = Date.now(), sessions = DB.all('sessions'), cut = now - 90 * 864e5, stale = 0;
+  DB.all('users').forEach(function (x) { info[x.id] = { locked: !!(x.lockedUntil && new Date(x.lockedUntil).getTime() > now), failed: Number(x.failed) || 0, devices: 0, lastSeen: '' }; });
+  sessions.forEach(function (s) {
+    var i = info[s.userId]; if (!i) { stale++; return; }
+    var seen = s.lastSeen || s.createdAt; if (new Date(seen).getTime() < cut) stale++;
+    i.devices++; if (!i.lastSeen || seen > i.lastSeen) i.lastSeen = seen;
+  });
+  return { users: info, sessions: sessions.length, staleSessions: stale };
+}
 /* A person's teams: their home team plus any extra teams (cluster colleagues working across properties). */
 function userTeams(u) {
   var l = [u.teamId];
@@ -321,6 +332,8 @@ function auth(DB, token) {
   if (!s) fail('AUTH');
   var u = DB.get('users', s.userId);
   if (!u || u.status !== 'active') fail('AUTH');
+  // remember when each device was last used (at most every 30 minutes, to keep writes low)
+  if (!s.lastSeen || Date.now() - new Date(s.lastSeen).getTime() > 30 * 60000) DB.update('sessions', s.id, { lastSeen: nowISO() });
   return u;
 }
 function log(DB, u, teamId, type, refId, text, targets) {
@@ -420,6 +433,7 @@ var ACTIONS = {
       projects: projects, tasks: tasks,
       comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
       activity: activity,
+      admin: admin ? adminInfo(DB) : null,
       serverTime: nowISO()
     };
   },
@@ -702,6 +716,48 @@ var ACTIONS = {
     DB.insert('users', nu);
     log(DB, u, team.id, 'approved', nu.id, 'added ' + name + ' to ' + team.name, [nu.id]);
     return publicUser(nu);
+  },
+
+  /* ---------- main admin tools ---------- */
+  unlockUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId);
+    if (!target) fail('That person no longer exists.');
+    if (!isAdmin(u) && !canManageTeam(u, target.teamId)) fail('You can’t unlock this account.');
+    DB.update('users', target.id, { failed: 0, lockedUntil: '' });
+    return { ok: true };
+  },
+  signOutUser: function (DB, r) {
+    var u = auth(DB, r.token), target = DB.get('users', r.userId);
+    if (!target) fail('That person no longer exists.');
+    if (!isAdmin(u) && !canManageTeam(u, target.teamId)) fail('You can’t sign this person out.');
+    var n = 0;
+    DB.all('sessions').filter(function (s) { return s.userId === target.id && s.id !== r.token; }).forEach(function (s) { DB.remove('sessions', s.id); n++; });
+    return { ok: true, count: n };
+  },
+  /* Repairs for data that went out of shape (deleted teams, renamed stages, removed projects). Main admin only. */
+  fixData: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can do this.');
+    var n = 0, team = r.teamId ? DB.get('teams', r.teamId) : null;
+    if (r.kind === 'orphanProjects') {
+      if (!team) fail('Choose a team.');
+      DB.all('projects').filter(function (p) { return !DB.get('teams', p.teamId); }).forEach(function (p) { DB.update('projects', p.id, { teamId: team.id, updatedAt: nowISO() }); n++; });
+    } else if (r.kind === 'homelessUsers') {
+      if (!team) fail('Choose a team.');
+      DB.all('users').filter(function (x) { return !DB.get('teams', x.teamId); }).forEach(function (x) { DB.update('users', x.id, { teamId: team.id, propertyCode: team.propertyCode }); n++; });
+    } else if (r.kind === 'orphanTasks') {
+      DB.all('tasks').filter(function (t) { return t.projectId && !DB.get('projects', t.projectId); }).forEach(function (t) { DB.update('tasks', t.id, { projectId: '', updatedAt: nowISO() }); n++; });
+      DB.all('tasks').filter(function (t) { return t.parentId && !DB.get('tasks', t.parentId); }).forEach(function (t) { DB.update('tasks', t.id, { parentId: '', updatedAt: nowISO() }); n++; });
+    } else if (r.kind === 'badStatus') {
+      DB.all('tasks').forEach(function (t) {
+        var parent = t.parentId ? DB.get('tasks', t.parentId) : null, p = t.projectId ? DB.get('projects', t.projectId) : null;
+        var list = parent ? stagesOf({ stages: parent.subStages }) : stagesOf(p), ids = list.map(function (s) { return s.id; });
+        if (ids.indexOf(t.status) < 0) { DB.update('tasks', t.id, { status: ids[0], updatedAt: nowISO() }); n++; }
+      });
+    } else if (r.kind === 'staleSessions') {
+      var cut = Date.now() - 90 * 864e5;
+      DB.all('sessions').filter(function (s) { return !DB.get('users', s.userId) || new Date(s.lastSeen || s.createdAt).getTime() < cut; }).forEach(function (s) { DB.remove('sessions', s.id); n++; });
+    } else fail('Unknown repair.');
+    return { ok: true, count: n };
   },
 
   removeUser: function (DB, r) {
