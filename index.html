@@ -824,6 +824,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 
 .act-p{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);margin-top:3px;letter-spacing:-.08px}
 .act-p .pdot{width:8px;height:8px}
+.sec-h:focus:not(:focus-visible),.sb-grp:focus:not(:focus-visible),.twist:focus:not(:focus-visible){outline:none;box-shadow:none}
 
 </style>
 </head>
@@ -1863,7 +1864,7 @@ function stageOf(t) { const l = stagesForTask(t); const s = l.find(x => x.id ===
 const SBC = store.get('orbit_sbc', {});
 /* Accordions: in each group only one section is open at a time. ACC[group] = the open key ('' = all closed). */
 const ACC = store.get('orbit_acc', {});
-function accOpen(g, k, fallback) { return (g in ACC ? ACC[g] : fallback) === k; }
+function accOpen(g, k, fallback) { const v = g in ACC ? ACC[g] : fallback; return Array.isArray(v) ? v.includes(k) : v === k; }
 /* Project filters, kept per project. */
 const PF = () => S.pfs[S.projectId] || (S.pfs[S.projectId] = { state: '', mine: false, due: '', who: [], prio: [] });
 function weekRange(off) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 7 * off);
@@ -2430,8 +2431,13 @@ function projectHtml() {
       <div class="seg" id="seg-mode">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
       <button class="btn sm ${pfCount() ? '' : 'gray'}" data-act="projFilter" style="${pfCount() ? 'background:var(--accent-soft)' : ''}">${ic('filter', 's')}<span>Filter${pfCount() ? ' · ' + pfCount() : ''}</span></button>
       <button class="circle flat sm" data-act="projMenu" aria-label="Project options">${ic('more')}</button>
+      ${S.mode === 'board' && canEditStages(p) ? `<button class="btn sm gray" data-act="editStages">${ic('plus', 's')}<span>Stage</span></button>` : ''}
+      ${S.mode === 'list' ? (() => { const all = allOpen(p); return `<button class="btn sm gray" data-act="expandAll" data-on="${all ? 0 : 1}">${ic(all ? 'chevU' : 'chevD', 's')}<span>${all ? 'Collapse All' : 'Expand All'}</span></button>`; })() : ''}
     </div>${body}`;
 }
+/* Expand / collapse everything in the list view: stages and every task's subtasks. */
+function allOpen(p) { const g = ACC['st:' + p.id]; return Array.isArray(g) && g.length >= stageList(p).length; }
+
 function filtered(list) {
   const f = PF(); if (!pfCount()) return list;
   const wk = f.due ? weekRange(f.due === 'next' ? 1 : 0) : null;
@@ -2468,7 +2474,7 @@ function boardHtml(p) {
       }).join('')}
       ${S.addingCol === st ? `<div class="kcard"><input class="input" style="height:36px;background:transparent;padding:0;box-shadow:none" id="addcol" placeholder="Task title" data-enter="quickAdd" data-s="${st}" aria-label="New task title"></div>`
         : `<button class="addcard" data-act="addCard" data-s="${st}">${ic('plus', 's')} Add Task</button>`}</div>`;
-  }).join('')}${canEditStages(p) ? `<button class="col add-col" data-act="editStages">${ic('plus')}<span>Add Stage</span></button>` : ''}</div>`;
+  }).join('')}</div>`;
 }
 function calendarHtml(p) {
   const [y, m] = S.calMonth.split('-').map(Number);
@@ -2965,13 +2971,26 @@ const ACT = {
   acc(el) {
     const g = el.dataset.g, k = el.dataset.k;
     const wasOpen = el.getAttribute('aria-expanded') === 'true';
-    ACC[g] = wasOpen ? '' : k; store.set('orbit_acc', ACC); Motion.haptic();
+    // after "Expand All" several sections can be open: then each header just toggles itself
+    if (Array.isArray(ACC[g])) ACC[g] = wasOpen ? ACC[g].filter(x => x !== k) : ACC[g].concat(k); else ACC[g] = wasOpen ? '' : k;
+    store.set('orbit_acc', ACC); Motion.haptic();
+    const isOpen = key => Array.isArray(ACC[g]) ? ACC[g].includes(key) : key === ACC[g];
     $$('[data-act="acc"]').filter(h => h.dataset.g === g).forEach(h => {
-      const o = h.dataset.k === ACC[g];
+      const o = isOpen(h.dataset.k);
       h.classList.toggle('closed', !o); if (h.classList.contains('twist')) h.classList.toggle('open', o);
       h.setAttribute('aria-expanded', o);
     });
-    $$('[data-accp]').filter(p => p.dataset.accp.split('|')[0] === g).forEach(p => p.classList.toggle('open', p.dataset.accp === g + '|' + ACC[g]));
+    $$('[data-accp]').filter(p => p.dataset.accp.split('|')[0] === g).forEach(p => p.classList.toggle('open', isOpen(p.dataset.accp.slice(g.length + 1))));
+    const b = $('[data-act="expandAll"]'), pj = projById(S.projectId);
+    if (b && pj && g.startsWith('st:')) { const all = allOpen(pj); b.dataset.on = all ? 0 : 1; b.innerHTML = ic(all ? 'chevU' : 'chevD', 's') + `<span>${all ? 'Collapse All' : 'Expand All'}</span>`; }
+  },
+  expandAll(el) {
+    const p = projById(S.projectId); if (!p) return; Motion.haptic();
+    if (el.dataset.on === '1') {
+      ACC['st:' + p.id] = stageList(p).map(s => s.id);
+      ACC.sub = D().tasks.filter(t => t.projectId === p.id && !t.parentId && subtasks(t.id).length).map(t => t.id);
+    } else { ACC['st:' + p.id] = ''; ACC.sub = ''; }
+    store.set('orbit_acc', ACC); render({ soft: true });
   },
   noop() { },
   cellDue(el) { const i = $('input', el); try { i.showPicker(); } catch (e) { i.focus(); i.click(); } },
