@@ -760,8 +760,10 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .grab-h{display:block;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--fill)}
   body.insp-open .insp-scrim{opacity:1;pointer-events:auto}
   body.insp-open .main{transform:scale(.94);filter:brightness(.9);border-radius:24px;overflow:hidden}
-  .board{grid-auto-columns:minmax(82vw,1fr);scroll-snap-type:x mandatory;margin:0 -16px;padding:8px 16px 20px}
-  .col{scroll-snap-align:center}
+  .board{grid-auto-columns:calc(100vw - 56px);scroll-snap-type:x mandatory;margin:0 -16px;padding:8px 16px 20px;scroll-padding:0 16px;
+    overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+  .col{scroll-snap-align:start;scroll-snap-stop:always}
+  .kcard{-webkit-user-drag:none;-webkit-touch-callout:none}
   .cal .d{min-height:64px;padding:3px} .cal .ev{font-size:10px;padding:1px 3px}
   .person:has(.acts){flex-wrap:wrap}
   .person .acts{width:100%;padding-left:56px}
@@ -2580,7 +2582,7 @@ function boardHtml(p) {
     return `<div class="col" data-col="${st}"><div class="col-h"><span class="dot" style="background:${cvar(sg.color)}"></span>${esc(sg.name)}<span class="n tnum">${list.length}</span></div>
       ${list.map(t => {
         const subs = subtasks(t.id), nc = D().comments.filter(c => c.taskId === t.id).length;
-        return `<div class="kcard ${isDone(t) ? 'done' : ''}" draggable="true" data-drag="${t.id}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
+        return `<div class="kcard ${isDone(t) ? 'done' : ''}" draggable="${matchMedia('(pointer: fine)').matches}" data-drag="${t.id}" data-act="openTask" data-id="${t.id}" role="button" tabindex="0">
           <div class="ttl-row"><button class="check sm ${isDone(t) ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${isDone(t) ? 'Mark as not done' : 'Mark complete'}">${ic('check')}</button><div class="ttl">${esc(t.title)}</div>${avs(t.assignees)}</div>
           <div class="ft">${flag(t.priority)}${dueHtml(t)}${t.repeat ? `<span title="${esc(repeatLabel(t.repeat, t.repeatOn))}">${ic('repeat', 'xs')}</span>` : ''}${nc ? `<span>${ic('bubble', 'xs')} ${nc}</span>` : ''}
           ${(t.attachments || []).length ? `<span>${ic('clip', 'xs')} ${t.attachments.length}</span>` : ''}<span class="sp"></span>${subs.length ? `<span class="cnt ${subs.every(isDone) ? 'all' : ''}" title="Subtasks done">${ic('mytasks', 'xs')}${subs.filter(isDone).length}/${subs.length}</span>` : ''}</div></div>`;
@@ -4288,7 +4290,7 @@ const Motion = (() => {
     document.body.appendChild(aur);
     const MAX = 150, TRIGGER = 66;
     const rubber = dy => MAX * (1 - Math.exp(-dy / 270));
-    let startY = null, pulling = false, dist = 0, busy = false;
+    let startY = null, pulling = false, dist = 0, busy = false, startX = 0;
     const navH = () => { const n = $('#nav'); return n ? n.getBoundingClientRect().height : 90; };
     const setPull = (d, tr) => {
       const v = $('#page'); if (!v) return;
@@ -4302,11 +4304,12 @@ const Motion = (() => {
       const lt = $('#page .large-title'); if (lt) { lt.style.transition = v.style.transition; lt.style.transform = d ? 'scale(' + (1 + Math.min(d, 120) / 1400) + ')' : ''; }
     };
     const canPull = e => Session.token && S.data && !S.taskId && !DLG && !$('#lockroot').innerHTML && innerWidth < 1024 && e.target.closest && e.target.closest('#sc') && $('#sc').scrollTop <= 0;
-    document.addEventListener('touchstart', e => { if (busy || e.touches.length !== 1 || !canPull(e)) { startY = null; return; } startY = e.touches[0].clientY; pulling = false; dist = 0; }, { passive: true });
+    document.addEventListener('touchstart', e => { if (busy || e.touches.length !== 1 || !canPull(e)) { startY = null; return; } startY = e.touches[0].clientY; startX = e.touches[0].clientX; pulling = false; dist = 0; }, { passive: true });
     document.addEventListener('touchmove', e => {
       if (startY === null) return;
-      const dy = e.touches[0].clientY - startY, sc = $('#sc');
-      if (!pulling) { if (sc.scrollTop > 0 || dy < -6) { startY = null; return; } if (dy < 4) return; }
+      const dy = e.touches[0].clientY - startY, dx = e.touches[0].clientX - startX, sc = $('#sc');
+      // a sideways swipe (board columns, carousels) is never a pull-to-refresh
+      if (!pulling) { if (sc.scrollTop > 0 || dy < -6 || Math.abs(dx) > Math.abs(dy) || e.target.closest('.board')) { startY = null; return; } if (dy < 6) return; }
       pulling = true; if (e.cancelable) e.preventDefault();
       dist = rubber(Math.max(0, dy)); setPull(dist, false);
     }, { passive: false });
