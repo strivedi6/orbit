@@ -578,12 +578,24 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 }
 /* list dividers: one consistent hairline under every row, including rows after an open/closed subtask panel */
 .acc+.trow::before,.acc+.li::before{content:"";position:absolute;top:0;right:0;left:52px;height:.5px;background:var(--sep)}
-.tlist .addrow{padding-left:42px}
+.tlist .addrow{padding-left:18px}
 .tlist .addrow>svg{width:20px;height:20px;flex:none}
 .kcard .ttl-row .avs{margin-left:auto;flex:none}
 .kcard .ft .cnt{margin-left:0}
 @container (min-width: 760px){
   .tlist .acc>.acc-in>.menu,.tlist>.tbl-h{margin-left:32px}
+  /* the subtask arrow sits outside the card; the tick circle is concentric with the card's corner (26 − 12 = 14px gap) */
+  .tlist .menu{overflow:visible}
+  .tlist .menu>:first-child{border-top-left-radius:var(--r-card);border-top-right-radius:var(--r-card)}
+  .tlist .menu>:last-child{border-bottom-left-radius:var(--r-card);border-bottom-right-radius:var(--r-card)}
+  .tlist .trow{padding:14px 16px 14px 14px;gap:12px}
+  .tlist .trow.has-twist .twist{position:absolute;left:-30px;top:50%;margin:-12px 0 0;height:24px}
+  .tlist .trow.has-twist>span.twist{display:none}
+  .tlist .trow.nested{padding-left:50px}
+  .tlist .trow+.trow::before,.tlist .addrow::before,.tlist .acc+.trow::before,.tlist .acc>.acc-in>.trow:first-child::before,.tlist .trow+.trow.nested::before,.tlist .trow.nested+.trow::before{left:50px}
+  .tlist .addrow{padding-left:16px;gap:14px}
+  .tlist .cells{margin:-14px -16px -14px 0}
+  .tbl-h span:first-child{padding-left:50px!important}
   .c-st{padding:0 10px 0 8px}
   .c-st .pill{width:100%;justify-content:flex-start}
 }
