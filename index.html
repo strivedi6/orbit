@@ -253,7 +253,6 @@ body.insp-open .tab-fade{opacity:0}
 .banner .d{font-size:15px;color:var(--text-2);letter-spacing:-.23px}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .pcard{background:var(--surface);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px;text-align:left;min-width:0;transition:transform .35s var(--spring),box-shadow .25s;position:relative;overflow:hidden}
-.pcard::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--pc)}
 .pcard:active{transform:scale(.97)}
 .pcard .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .pcard .nm{font-weight:600;font-size:17px;letter-spacing:-.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
@@ -822,6 +821,9 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .ripple{display:none}
 }
 .mention-pop[hidden]{display:none!important}
+
+.act-p{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);margin-top:3px;letter-spacing:-.08px}
+.act-p .pdot{width:8px;height:8px}
 
 </style>
 </head>
@@ -1810,7 +1812,7 @@ const S = {
   data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
   scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
   collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', ''),
-  welcomed: false, pfs: {}, replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
+  welcomed: false, pfs: {}, actWho: 'all', actProj: 'all', actDate: 'all', replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
 };
 const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
 const me = () => D().me || Session.user || {};
@@ -2595,15 +2597,32 @@ function workloadHtml() {
 
 function actRow(a) {
   const u = userById(a.userId), forMe = (a.targets || []).includes(me().id);
-  return `<button class="act ${forMe ? 'me' : ''}" data-act="openActivity" data-id="${a.id}">${av(u)}<div class="tx"><b>${esc(u ? u.name : 'Someone')}</b> ${esc(a.text)}</div><time>${ago(a.createdAt)}</time></button>`;
+  const pj = projById(actProject(a)), d = new Date(a.createdAt), today = localDay(a.createdAt) === todayStr();
+  const when = today ? ago(a.createdAt) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `<button class="act ${forMe ? 'me' : ''}" data-act="openActivity" data-id="${a.id}">${av(u)}<div class="tx"><b>${esc(u ? u.name : 'Someone')}</b> ${esc(a.text)}${pj && a.type !== 'project' ? `<div class="act-p">${pdot(pj)}${esc(pj.name)}</div>` : ''}</div><time>${when}</time></button>`;
 }
 function activityHtml() {
   const all = D().activity.filter(a => S.scope === 'all' || inScope(a.teamId) || (taskById(a.refId) && taskInScope(taskById(a.refId))));
-  const list = S.actTab === 'me' ? all.filter(a => (a.targets || []).includes(me().id)) : all;
+  const base = S.actTab === 'me' ? all.filter(a => (a.targets || []).includes(me().id)) : all;
+  const from = S.actDate === 'all' ? '' : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ({ today: 0, week: 6, month: 29 }[S.actDate] || 0)); return d.toISOString(); })();
+  const list = base.filter(a => (S.actWho === 'all' || a.userId === S.actWho) && (S.actProj === 'all' || actProject(a) === S.actProj) && (!from || a.createdAt >= from))
+    .sort((a, b) => b.createdAt < a.createdAt ? -1 : 1);
+  const groups = []; list.forEach(a => { const k = localDay(a.createdAt); const g = groups[groups.length - 1]; if (g && g[0] === k) g[1].push(a); else groups.push([k, [a]]); });
+  const dayLabel = k => { const n = dayDiff(k); return n === 0 ? 'Today' : n === -1 ? 'Yesterday' : (() => { const d = parseDay(k); return DAYS[d.getDay()].slice(0, 3) + ', ' + d.getDate() + ' ' + MON[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''); })(); };
+  const filtered = S.actWho !== 'all' || S.actProj !== 'all' || S.actDate !== 'all';
+  const who = userById(S.actWho), pj = projById(S.actProj);
   return `<h1 class="large-title">Activity</h1><p class="lt-sub">Assignments, comments, files and approvals.</p>
-    <div class="seg" id="seg-act"><button class="${S.actTab === 'me' ? 'on' : ''}" data-act="actTab" data-t="me">For Me</button><button class="${S.actTab === 'all' ? 'on' : ''}" data-act="actTab" data-t="all">Everything</button></div>
-    <div class="menu" style="margin-top:14px">${list.length ? list.map(actRow).join('') : emptyState('bell', 'gray', 'No activity', S.actTab === 'me' ? 'When someone assigns you a task or comments on yours, it shows here.' : 'Team updates will show here.')}</div>`;
+    <div class="ctl-row"><div class="seg" id="seg-act"><button class="${S.actTab === 'me' ? 'on' : ''}" data-act="actTab" data-t="me">For Me</button><button class="${S.actTab === 'all' ? 'on' : ''}" data-act="actTab" data-t="all">Everything</button></div>
+      <div class="filters">${filtered ? '<button class="link" data-act="actFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}
+        <button class="pill flt ${S.actWho !== 'all' ? 'on' : ''}" data-act="actFilter" data-k="who">${ic('person', 's')}${esc(who ? who.name : 'Everyone')}${ic('chevD', 'xs')}</button>
+        <button class="pill flt ${S.actProj !== 'all' ? 'on' : ''}" data-act="actFilter" data-k="proj">${ic('folder', 's')}${esc(pj ? pj.name : 'All Projects')}${ic('chevD', 'xs')}</button>
+        <button class="pill flt ${S.actDate !== 'all' ? 'on' : ''}" data-act="actFilter" data-k="date">${ic('cal', 's')}${esc(ACT_DATES[S.actDate])}${ic('chevD', 'xs')}</button></div></div>
+    ${groups.length ? groups.map(([k, l]) => `<div class="section-title">${esc(dayLabel(k))} <span class="n tnum">${l.length}</span></div><div class="menu">${l.map(actRow).join('')}</div>`).join('')
+      : `<div class="menu" style="margin-top:14px">${emptyState('bell', 'gray', 'No activity', filtered ? 'Nothing matches these filters.' : S.actTab === 'me' ? 'When someone assigns you a task or comments on yours, it shows here.' : 'Team updates will show here.')}</div>`}`;
 }
+const ACT_DATES = { all: 'All Time', today: 'Today', week: 'Last 7 Days', month: 'Last 30 Days' };
+function actProject(a) { if (a.type === 'project') return a.refId; const t = taskById(a.refId); return t ? t.projectId || '' : ''; }
+function localDay(iso) { const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function searchHtml() {
   return `<h1 class="large-title">Search</h1>
     <label class="search" style="height:44px;width:100%;margin:6px 0 4px">${ic('search', 's')}<input id="q2" type="search" placeholder="Tasks, projects, people" value="${esc(S.q)}" data-input="search2" aria-label="Search"></label>
@@ -2985,6 +3004,20 @@ const ACT = {
     const p = projById(el.dataset.id); if (!p) return;
     op({ action: 'saveProject', project: Object.assign({}, p, { archived: true, status: 'complete' }) });
     nav(() => { S.view = 'projects'; }, 'pop'); toast('“' + p.name + '” archived');
+  },
+  actFilter(el) {
+    const k = el.dataset.k, set = (f, v) => () => { S[f] = v; render({ soft: true }); };
+    if (k === 'clear') { S.actWho = S.actProj = S.actDate = 'all'; render({ soft: true }); return; }
+    const acts = D().activity;
+    if (k === 'who') {
+      const ids = [...new Set(acts.map(a => a.userId))].map(userById).filter(u => u && visibleUser(u)).sort((a, b) => a.name.localeCompare(b.name));
+      openMenu(el, [{ label: 'Everyone', checked: S.actWho === 'all', onClick: set('actWho', 'all') }, '-',
+        ...ids.map(u => ({ html: `<span style="display:inline-flex;align-items:center;gap:8px">${av(u, 'xs')}${esc(u.name)}</span>`, checked: S.actWho === u.id, onClick: set('actWho', u.id) }))]);
+    } else if (k === 'proj') {
+      const ps = D().projects.filter(p => projInScope(p)).sort((a, b) => a.name.localeCompare(b.name));
+      openMenu(el, [{ label: 'All Projects', checked: S.actProj === 'all', onClick: set('actProj', 'all') }, '-',
+        ...ps.map(p => ({ html: `<span style="display:inline-flex;align-items:center;gap:8px">${pdot(p)}${esc(p.name)}</span>`, checked: S.actProj === p.id, onClick: set('actProj', p.id) }))]);
+    } else openMenu(el, Object.keys(ACT_DATES).map(d => ({ label: ACT_DATES[d], checked: S.actDate === d, onClick: set('actDate', d) })));
   },
   teamFilter(el) {
     const k = el.dataset.k;
