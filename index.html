@@ -180,7 +180,7 @@ button.li:active,.li.tap:active{background:var(--fill-4)}
 @keyframes pulse{50%{opacity:.35}}
 .search{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;background:var(--fill-3);width:240px;color:var(--text-2)}
 .search input{border:0;outline:none;background:transparent;width:100%;font-size:15px;color:var(--text);letter-spacing:-.23px}
-.scroll{flex:1;overflow-y:auto;scrollbar-gutter:stable;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
   padding:0 16px calc(var(--tab-h) + var(--safe-b) + 44px)}
 .page{max-width:1000px;margin:0 auto;transition:transform .6s var(--spring)}
 .page.wide{max-width:none}
@@ -776,7 +776,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   body{font-size:15px;letter-spacing:-.23px}
   .tabdock,.tab-fade,#aurora{display:none}
   .prop-badge{display:none}
-  .sidebar{display:flex;flex-direction:column;gap:4px;position:fixed;z-index:30;top:12px;bottom:12px;left:12px;width:calc(var(--side) - 24px);padding:14px 12px 12px;border-radius:26px;overflow-y:auto;scrollbar-width:thin}
+  .sidebar{display:flex;flex-direction:column;gap:4px;position:fixed;z-index:30;top:12px;bottom:12px;left:12px;width:calc(var(--side) - 24px);padding:14px 12px 12px;border-radius:26px;overflow-y:auto;scrollbar-width:none}
   .main{margin-left:var(--side)}
   /* task panel floats over the page: the page stays full width, dimmed and slightly blurred behind it */
   .insp-scrim{background:var(--dim);-webkit-backdrop-filter:blur(0px);backdrop-filter:blur(0px);transition:opacity .4s ease,backdrop-filter .4s ease,-webkit-backdrop-filter .4s ease}
@@ -784,7 +784,6 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .navbar{padding:14px 24px 8px 12px;min-height:64px}
   .navbar .nb-title{visibility:hidden}
   .scroll{padding:0 28px 56px 12px}
-  .scroll{overflow-y:scroll} /* Safari ignores scrollbar-gutter: always keep the scrollbar track so the width never changes */
   .insp{top:12px;right:12px;bottom:12px;width:var(--insp-w);border-radius:28px;background:var(--panel);
     box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
   .insp.open{box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
@@ -827,6 +826,10 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .act-p{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);margin-top:3px;letter-spacing:-.08px}
 .act-p .pdot{width:8px;height:8px}
 .sec-h:focus:not(:focus-visible),.sb-grp:focus:not(:focus-visible),.twist:focus:not(:focus-visible){outline:none;box-shadow:none}
+
+/* no visible scrollbars anywhere (scrolling still works); also keeps page width constant in every browser */
+*{scrollbar-width:none}
+*::-webkit-scrollbar{display:none;width:0;height:0}
 
 </style>
 </head>
