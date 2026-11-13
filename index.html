@@ -784,6 +784,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .navbar{padding:14px 24px 8px 12px;min-height:64px}
   .navbar .nb-title{visibility:hidden}
   .scroll{padding:0 28px 56px 12px}
+  .scroll{overflow-y:scroll} /* Safari ignores scrollbar-gutter: always keep the scrollbar track so the width never changes */
   .insp{top:12px;right:12px;bottom:12px;width:var(--insp-w);border-radius:28px;background:var(--panel);
     box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
   .insp.open{box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
@@ -1814,7 +1815,7 @@ const S = {
   data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
   scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
   collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', ''),
-  welcomed: false, pfs: {}, actWho: 'all', actProj: 'all', actDate: 'all', replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
+  welcomed: false, pfs: {}, actWho: 'all', actProj: 'all', actDate: 'all', myWho: 'all', myProj: 'all', myTime: 'all', replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
 };
 const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
 const me = () => D().me || Session.user || {};
@@ -2378,13 +2379,26 @@ function cellsHtml(t) {
 }
 
 function myTasksHtml() {
-  const mine = myTasks(), f = S.myFilter, pend = Outbox.pendingIds();
+  const f = S.myFilter, pend = Outbox.pendingIds();
+  const since = S.myTime === 'all' ? '' : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ({ today: 0, week: 6, month: 29 }[S.myTime] || 0)); return d.toISOString(); })();
+  const mine = myTasks().filter(t => (S.myWho === 'all' || (t.assignees || []).includes(S.myWho) || t.createdBy === S.myWho) && (S.myProj === 'all' || t.projectId === S.myProj)
+    && (f !== 'done' || !since || (t.completedAt && t.completedAt >= since)));
+  const filtered = S.myWho !== 'all' || S.myProj !== 'all' || (f === 'done' && S.myTime !== 'all');
+  const who = userById(S.myWho), pj = projById(S.myProj);
+  const filters = `<div class="filters">${filtered ? '<button class="link" data-act="myFilterPick" data-k="clear" style="font-size:15px">Clear</button>' : ''}
+      <button class="pill flt ${S.myWho !== 'all' ? 'on' : ''}" data-act="myFilterPick" data-k="who">${ic('person', 's')}${esc(who ? who.name : 'Everyone')}${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.myProj !== 'all' ? 'on' : ''}" data-act="myFilterPick" data-k="proj">${ic('folder', 's')}${esc(pj ? pj.name : 'All Projects')}${ic('chevD', 'xs')}</button>
+      ${f === 'done' ? `<button class="pill flt ${S.myTime !== 'all' ? 'on' : ''}" data-act="myFilterPick" data-k="time">${ic('cal', 's')}${esc(ACT_DATES[S.myTime])}${ic('chevD', 'xs')}</button>` : ''}</div>`;
   const segs = [['open', 'All Open'], ['today', 'Today'], ['overdue', 'Overdue'], ['done', 'Completed']];
   let body = '';
   const sortDue = (a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : (a.due || '9999') > (b.due || '9999') ? 1 : (PRIOR(b) - PRIOR(a));
   if (f === 'done') {
     const list = mine.filter(isDone).sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1));
-    body = `<div class="menu" style="margin-top:14px">${list.length ? list.map(t => taskRow(t, { showProject: true, pend })).join('') : emptyState('done', 'green', 'Nothing completed yet', 'Tasks you finish will collect here.')}</div>`;
+    // grouped by the day they were completed
+    const groups = []; list.forEach(t => { const k = t.completedAt ? localDay(t.completedAt) : ''; const g = groups[groups.length - 1]; if (g && g[0] === k) g[1].push(t); else groups.push([k, [t]]); });
+    const dl = k => { if (!k) return 'Earlier'; const n = dayDiff(k); if (n === 0) return 'Today'; if (n === -1) return 'Yesterday'; const d = parseDay(k); return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MON[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''); };
+    body = list.length ? groups.map(([k, l]) => `<div class="section-title">${esc(dl(k))} <span class="n tnum">${l.length}</span></div><div class="menu">${l.map(t => taskRow(t, { showProject: true, pend })).join('')}</div>`).join('')
+      : `<div class="menu" style="margin-top:14px">${emptyState('done', 'green', filtered ? 'Nothing matches' : 'Nothing completed yet', filtered ? 'Change or clear the filters to see more.' : 'Tasks you finish will collect here.')}</div>`;
   } else {
     const open = mine.filter(t => !isDone(t)).sort(sortDue);
     const buckets = [['Overdue', t => t.due && dayDiff(t.due) < 0], ['Today', t => t.due && dayDiff(t.due) === 0], ['Tomorrow', t => t.due && dayDiff(t.due) === 1],
@@ -2397,7 +2411,7 @@ function myTasksHtml() {
     if (!body) body = `<div class="menu" style="margin-top:14px">${emptyState('done', 'green', f === 'open' ? 'You’re all caught up' : 'Nothing here', f === 'open' ? 'No open tasks are assigned to you.' : 'No tasks match this filter.')}</div>`;
   }
   return `<h1 class="large-title">My Tasks</h1><p class="lt-sub">Everything assigned to you, by due date.</p>
-    <div class="seg" id="seg-my" role="tablist">${segs.map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="myFilter" data-f="${k}" role="tab" aria-selected="${f === k}">${l}</button>`).join('')}</div>${body}`;
+    <div class="ctl-row"><div class="seg" id="seg-my" role="tablist">${segs.map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="myFilter" data-f="${k}" role="tab" aria-selected="${f === k}">${l}</button>`).join('')}</div>${filters}</div>${body}`;
 }
 
 function projectsHtml() {
@@ -3024,6 +3038,20 @@ const ACT = {
     const p = projById(el.dataset.id); if (!p) return;
     op({ action: 'saveProject', project: Object.assign({}, p, { archived: true, status: 'complete' }) });
     nav(() => { S.view = 'projects'; }, 'pop'); toast('“' + p.name + '” archived');
+  },
+  myFilterPick(el) {
+    const k = el.dataset.k, set = (f, v) => () => { S[f] = v; render({ soft: true }); };
+    if (k === 'clear') { S.myWho = S.myProj = S.myTime = 'all'; render({ soft: true }); return; }
+    const mine = myTasks();
+    if (k === 'who') {
+      const ids = [...new Set(mine.flatMap(t => [...(t.assignees || []), t.createdBy]))].filter(id => id !== me().id).map(userById).filter(u => u && visibleUser(u)).sort((a, b) => a.name.localeCompare(b.name));
+      openMenu(el, [{ label: 'Everyone', checked: S.myWho === 'all', onClick: set('myWho', 'all') }, '-',
+        ...ids.map(u => ({ html: `<span style="display:inline-flex;align-items:center;gap:8px">${av(u, 'xs')}${esc(u.name)}</span>`, checked: S.myWho === u.id, onClick: set('myWho', u.id) }))]);
+    } else if (k === 'proj') {
+      const ps = [...new Set(mine.map(t => t.projectId).filter(Boolean))].map(projById).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+      openMenu(el, [{ label: 'All Projects', checked: S.myProj === 'all', onClick: set('myProj', 'all') }, '-',
+        ...ps.map(p => ({ html: `<span style="display:inline-flex;align-items:center;gap:8px">${pdot(p)}${esc(p.name)}</span>`, checked: S.myProj === p.id, onClick: set('myProj', p.id) }))]);
+    } else openMenu(el, Object.keys(ACT_DATES).map(d => ({ label: d === 'all' ? 'Any Time' : 'Completed ' + ACT_DATES[d].replace('Last', 'in the Last'), checked: S.myTime === d, onClick: set('myTime', d) })));
   },
   actFilter(el) {
     const k = el.dataset.k, set = (f, v) => () => { S[f] = v; render({ soft: true }); };
