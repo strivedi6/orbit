@@ -967,6 +967,15 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .org-grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}
   .menu-pop button{border-radius:16px}
 }
+/* App colour picker in Settings; dark brand colours keep a faint ring so they show on dark surfaces */
+.acc-pick .swatches{flex-basis:100%;padding-left:48px!important}
+.acc-pick .swatches button,.acc-pick .swatches label{width:28px;height:28px}
+.acc-def{display:grid;place-items:center;color:#fff}
+.acc-def svg{width:12px;height:12px;filter:drop-shadow(0 0 1px rgba(0,0,0,.4))}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .swatches button,:root:not([data-theme="light"]) .swatches label,:root:not([data-theme="light"]) .dot,:root:not([data-theme="light"]) .pal-sw,:root:not([data-theme="light"]) .pal-mini i{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)} }
+:root[data-theme="dark"] .swatches button,:root[data-theme="dark"] .swatches label,:root[data-theme="dark"] .dot,:root[data-theme="dark"] .pal-sw,:root[data-theme="dark"] .pal-mini i{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+:root[data-theme="dark"] .swatches button.on,:root[data-theme="dark"] .swatches label.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text-3),inset 0 0 0 1px rgba(255,255,255,.22)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .swatches button.on,:root:not([data-theme="light"]) .swatches label.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text-3),inset 0 0 0 1px rgba(255,255,255,.22)} }
 
 </style>
 </head>
@@ -2113,10 +2122,27 @@ function currentProperty() {
   if (S.scope !== 'all') { const t = teamById(S.scope); if (t) code = t.propertyCode; }
   return propByCode(code) || { code: code || '', name: '', color: 'blue', logo: '' };
 }
-function applyAccent(color) {
-  const c = color || (Session.token && S.data ? currentProperty().color : (store.get('orbit_last', {}).color || 'blue'));
-  document.documentElement.style.setProperty('--accent', cvar(c));
+/* Accent colour: the property's colour, or the colour this person picked in Settings.
+   Brand colours that are too dark for dark mode (or too pale for light mode) are nudged until they read clearly. */
+const accentKey = () => 'orbit_accent_' + ((Session.user && Session.user.id) || '');
+function isDark() { const t = document.documentElement.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; }
+function hexRgb(h) { h = String(h).replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function rgbHex(r) { return '#' + r.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''); }
+function lum(rgb) { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(rgb[0]) + .7152 * f(rgb[1]) + .0722 * f(rgb[2]); }
+function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+function readableHex(hex, dark) {
+  let c = hexRgb(hex); const bg = dark ? [28, 28, 30] : [255, 255, 255], to = dark ? [255, 255, 255] : [0, 0, 0];
+  for (let i = 0; i < 20 && contrast(c, bg) < (dark ? 4 : 3.2); i++) c = c.map((v, k) => v + (to[k] - v) * .12);
+  return rgbHex(c);
 }
+function accentChoice() { return (Session.token && store.get(accentKey(), '')) || ''; }
+function applyAccent(color) {
+  const c = accentChoice() || color || (Session.token && S.data ? currentProperty().color : (store.get('orbit_last', {}).color || 'blue'));
+  const root = document.documentElement.style;
+  if (c && c[0] === '#') { const v = readableHex(c, isDark()); root.setProperty('--accent', v); root.setProperty('--on-accent', lum(hexRgb(v)) > .45 ? '#000000' : '#FFFFFF'); }
+  else { root.setProperty('--accent', cvar(c)); root.setProperty('--on-accent', '#FFFFFF'); }
+}
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyAccent()); } catch (e) { }
 function plogo(p, cls = '') {
   if (!p) return '';
   return `<span class="plogo ${cls}" style="background:${cvar(p.color)}">${p.logo ? `<img src="${esc(p.logo)}" alt="">` : esc(String(p.code || '?').slice(0, 2))}</span>`;
@@ -3003,6 +3029,14 @@ function searchResultsHtml(q, inner) {
     ${teams.length ? `<div class="section-title">Departments</div><div class="menu">${teams.map(t => `<button class="li" data-act="editTeam" data-id="${t.id}" style="--inset:62px"><span style="width:36px;display:grid;place-items:center;flex:none"><span class="dot" style="background:${cvar(t.color)}"></span></span><span class="lbl">${esc(t.name)}<div class="sub">${esc((propByCode(t.propertyCode) || {}).name || t.propertyCode)}</div></span><span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}`;
 }
 
+function accentPickHtml(prop) {
+  const pal = Array.isArray(prop.palette) && prop.palette.length ? prop.palette : PCOLORS, cur = accentChoice(), custom = cur && cur[0] === '#' && !pal.includes(cur);
+  return `<div class="li acc-pick" style="flex-wrap:wrap;row-gap:10px"><span class="ico" style="background:var(--accent)">${ic('palette')}</span><span class="lbl">App Colour<div class="sub">${cur ? 'Your own colour' : 'Using ' + esc(prop.name || 'your property') + '’s colour'}</div></span>
+    <div class="swatches" style="padding:0;gap:10px">
+      <button type="button" class="${cur ? '' : 'on'} acc-def" data-act="setAccent" data-c="" style="background:${cvar(prop.color || 'blue')}" aria-label="Property colour" title="Property colour"><span>${ic('building', 'xs')}</span></button>
+      ${pal.map(c => `<button type="button" class="${cur === c ? 'on' : ''}" data-act="setAccent" data-c="${esc(c)}" style="background:${cvar(c)}" aria-label="${esc(c)}"></button>`).join('')}
+      <label class="${custom ? 'on' : ''}" title="Custom colour" style="${custom ? 'background:' + esc(cur) : ''}"><input type="color" value="${custom ? esc(cur) : '#2f888e'}" data-change="accentCustom" aria-label="Custom colour"></label></div></div>`;
+}
 function settingsHtml() {
   const m = me(), team = teamById(m.teamId), theme = store.get('orbit_theme', 'system'), prop = propByCode(m.propertyCode) || {};
   return `<h1 class="large-title">Settings</h1>
@@ -3019,7 +3053,8 @@ function settingsHtml() {
     </div>
     <div class="section-title">Appearance</div>
     <div class="menu"><div class="li" style="flex-wrap:wrap"><span class="ico" style="background:var(--purple)">${ic('moon')}</span><span class="lbl">Theme</span>
-      <div class="seg" id="seg-theme">${['system', 'light', 'dark'].map(t => `<button class="${theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t === 'system' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div>
+      <div class="seg" id="seg-theme">${['system', 'light', 'dark'].map(t => `<button class="${theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t === 'system' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
+      ${accentPickHtml(prop)}</div>
     ${isAdminU() ? `<div class="section-title">Main Admin</div><div class="menu">
       <button class="li" data-act="manageOrg"><span class="ico" style="background:var(--orange)">${ic('palette')}</span><span class="lbl">Properties, Colours & Logos</span><span class="val tnum"><span>${D().properties.length} · ${D().teams.length} teams</span></span><span class="chev">${ic('chevR', 's')}</span></button></div>` : ''}
     <div class="section-title">Data</div>
@@ -3711,6 +3746,8 @@ const ACT = {
         await run('resetPin', { userId: me().id, oldPin: o, pin: n }, 'PIN changed');
       } });
   },
+  accentCustom(el) { store.set(accentKey(), el.value); applyAccent(); render({ soft: true }); },
+  setAccent(el) { store.set(accentKey(), el.dataset.c || ''); applyAccent(); Motion.haptic && Motion.haptic(); render({ soft: true }); },
   theme(el) { store.set('orbit_theme', el.dataset.t); applyTheme(); render(); },
   async refresh() { toast('Refreshing…', false, true); await Outbox.flush(); await sync({ force: true }); fetchPhotos(); toast('Up to date'); },
   async resetDemo() { if (!await confirmBox({ title: 'Reset demo data?', msg: 'All demo projects and changes on this device go back to the starting example.', ok: 'Reset', danger: true })) return; LocalDB.reset(); store.del('orbit_photos'); for (const k in PH) delete PH[k]; signedOut('Demo data reset. Sign in again.'); },
@@ -4731,7 +4768,7 @@ document.addEventListener('visibilitychange', () => {
 addEventListener('online', () => { Outbox.kick(0); });
 
 /* theme */
-function applyTheme() { const t = store.get('orbit_theme', 'system'); if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }
+function applyTheme() { const t = store.get('orbit_theme', 'system'); if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); try { applyAccent(); } catch (e) { } }
 
 /* boot */
 (function boot() {
