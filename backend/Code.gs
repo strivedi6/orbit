@@ -155,7 +155,8 @@ var TABLES = {
   projects:   ['id','teamId','name','color','icon','description','ownerId','status','due','createdBy','createdAt','updatedAt','archived','stages','shareTeams','access','members','managers'],
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId','repeatOn','subStages'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
-  activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
+  activity:   ['id','teamId','userId','type','refId','text','targets','createdAt'],
+  settings:   ['id','value','updatedAt']
 };
 var JSON_COLS = { palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
@@ -326,10 +327,18 @@ function canSeeTask(DB, u, t) {
 }
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
+/* App-wide settings the main admin controls (one row per setting). */
+var SESSION_HOURS = [0, 24, 48, 72, 168, 336, 720];
+function getSetting(DB, k, def) { var r = DB.get('settings', k); return r && r.value !== '' && r.value !== undefined ? r.value : def; }
+function setSetting(DB, k, v) { if (DB.get('settings', k)) DB.update('settings', k, { value: v, updatedAt: nowISO() }); else DB.insert('settings', { id: k, value: v, updatedAt: nowISO() }); }
+function appSettings(DB) { return { sessionHours: Number(getSetting(DB, 'sessionHours', 0)) || 0, iconV: String(getSetting(DB, 'appIconV', '')) }; }
 function auth(DB, token) {
   if (!token) fail('AUTH');
   var s = DB.get('sessions', token);
   if (!s) fail('AUTH');
+  // the main admin can make every device sign in again after a set time
+  var hrs = Number(getSetting(DB, 'sessionHours', 0)) || 0;
+  if (hrs > 0 && s.createdAt && Date.now() - new Date(s.createdAt).getTime() > hrs * 3600000) { DB.remove('sessions', s.id); fail('AUTH'); }
   var u = DB.get('users', s.userId);
   if (!u || u.status !== 'active') fail('AUTH');
   // remember when each device was last used (at most every 30 minutes, to keep writes low)
@@ -361,6 +370,8 @@ var ACTIONS = {
       .sort(function (a, b) { return a.name < b.name ? -1 : 1; });
     return { property: publicProperty(p), teams: teams };
   },
+
+  appIcon: function (DB) { return { icon: String(getSetting(DB, 'appIcon', '')), v: String(getSetting(DB, 'appIconV', '')) }; },
 
   signup: function (DB, r) {
     var p = findProperty(DB, r.propertyCode);
@@ -444,6 +455,7 @@ var ACTIONS = {
       comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
       activity: activity,
       admin: admin ? adminInfo(DB) : null,
+      app: appSettings(DB),
       serverTime: nowISO()
     };
   },
@@ -660,6 +672,19 @@ var ACTIONS = {
     if (!(att.by === u.id || canManageTeam(u, t.teamId))) fail('Only the person who added this file or a department head can remove it.');
     DB.update('tasks', t.id, { attachments: (t.attachments || []).filter(function (a) { return a.id !== r.attId; }) });
     return { ok: true };
+  },
+
+  /* ---------- main admin: app settings ---------- */
+  saveAppSettings: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can change app settings.');
+    if (r.sessionHours !== undefined) { var h = Number(r.sessionHours) || 0; if (SESSION_HOURS.indexOf(h) < 0) fail('Choose one of the listed times.'); setSetting(DB, 'sessionHours', String(h)); }
+    if (r.appIcon !== undefined) { setSetting(DB, 'appIcon', cleanImage(r.appIcon)); setSetting(DB, 'appIconV', r.appIcon ? String(Date.now()) : ''); }
+    return { app: appSettings(DB) };
+  },
+  signOutEveryone: function (DB, r) {
+    var u = auth(DB, r.token); if (!isAdmin(u)) fail('Only the main admin can do that.');
+    var n = 0; DB.all('sessions').forEach(function (x) { if (x.id !== r.token) { DB.remove('sessions', x.id); n++; } });
+    return { signedOut: n };
   },
 
   /* ---------- people & approvals ---------- */
