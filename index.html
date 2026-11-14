@@ -949,6 +949,25 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .pal-mini i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)}
 .sb-nav[hidden]{display:none!important}
 
+/* ---- alignment pass: top bar lines up with the page content; search collapses to an icon ---- */
+.org-grid{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
+.org-col{min-width:0}
+.li.org-head,.li.adm-prop{padding:14px}
+.org-head .plogo,.adm-prop .plogo{border-radius:calc(var(--r-card) - 14px)}
+.menu-pop button{border-radius:16px}
+@media (min-width:1024px){
+  .navbar{--pad-x:max(0px,calc((100% - 1040px) / 2));padding:14px calc(28px + var(--pad-x)) 8px calc(12px + var(--pad-x))}
+  .main:has(.page.wide) .navbar{--pad-x:0px}
+  .navbar .search.desk-only{width:32px;height:32px;padding:0 8px;overflow:hidden;cursor:pointer;flex:none;transition:width .4s var(--spring),background .2s}
+  .navbar .search.desk-only>svg{flex:none}
+  .navbar .search.desk-only input{min-width:0;cursor:pointer}
+  .navbar .search.desk-only:hover,.navbar .search.desk-only:focus-within,.navbar .search.desk-only.has,.navbar .search.desk-only:has(input:not(:placeholder-shown)){width:260px;cursor:text}
+  .navbar .search.desk-only:focus-within input{cursor:text}
+  .ctl-row .filters,.controls{margin-right:0}
+  .org-grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}
+  .menu-pop button{border-radius:16px}
+}
+
 </style>
 </head>
 <body>
@@ -2477,9 +2496,9 @@ function navbarHtml() {
     <div class="nb-title">${p ? pdot(p) : ''}<span>${title}</span></div>
     <div class="nb-r">
       <span class="circle sync-ic mob-only" id="syncic" data-s="${Outbox.state}" ${Outbox.state === 'idle' ? 'hidden' : ''}>${ic('cloud')}</span>
-      <label class="search desk-only">${ic('search', 's')}<input id="q" type="search" placeholder="Search" value="${esc(S.q)}" data-input="search" aria-label="Search tasks, projects and people"></label>
+      <label class="search desk-only ${S.q ? 'has' : ''}" title="Search">${ic('search', 's')}<input id="q" type="search" placeholder="Search" value="${esc(S.q)}" data-input="search" aria-label="Search tasks, projects and people"></label>
       <button class="circle glass mob-only" data-act="go" data-v="search" aria-label="Search">${ic('search')}</button>
-      ${isAdminU() ? `<button class="btn primary sm desk-only" data-act="addMember">${ic('personPlus', 's')}<span>Add Person</span></button>` : ''}
+      ${isAdminU() ? `<button class="btn primary sm desk-only" data-act="adminFab">${ic('plus', 's')}<span>New</span>${ic('chevD', 'xs')}</button>` : ''}
       ${!isAdminU() && S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary sm desk-only" data-act="fabMenu">${ic('plus', 's')}<span>New</span>${ic('chevD', 'xs')}</button>` : ''}
     </div>
   </div>`;
@@ -2572,21 +2591,20 @@ function orgHtml() {
   const props = D().properties.filter(p => !S.orgProp || S.orgProp === 'all' || p.code === S.orgProp);
   const depts = [...new Set(D().teams.map(t => t.name))].sort();
   const pName = S.orgProp && S.orgProp !== 'all' ? (propByCode(S.orgProp) || {}).name : '';
-  return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Properties &amp; Teams</h1>
-      <button class="btn primary sm" data-act="newProperty">${ic('plus', 's')}<span>Add Property</span></button></div>
+  return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Properties &amp; Teams</h1></div>
     <p class="lt-sub">${D().properties.length} properties · ${D().teams.length} teams. People type the property code when they sign up, then choose their team.</p>
     <div class="ctl-row"><span></span><div class="filters">${(S.orgProp && S.orgProp !== 'all') || (S.orgDept && S.orgDept !== 'all') ? '<button class="link" data-act="orgFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}
       <button class="pill flt ${pName ? 'on' : ''}" data-act="orgFilter" data-k="orgProp">${ic('building', 's')}${esc(pName || 'All Properties')}${ic('chevD', 'xs')}</button>
       <button class="pill flt ${S.orgDept && S.orgDept !== 'all' ? 'on' : ''}" data-act="orgFilter" data-k="orgDept">${ic('people', 's')}${esc(S.orgDept && S.orgDept !== 'all' ? S.orgDept : 'All Departments')}${ic('chevD', 'xs')}</button></div></div>
-    ${props.map(p => { const ts = D().teams.filter(t => t.propertyCode === p.code && (!S.orgDept || S.orgDept === 'all' || t.name === S.orgDept));
+    <div class="org-grid">${props.map(p => { const ts = D().teams.filter(t => t.propertyCode === p.code && (!S.orgDept || S.orgDept === 'all' || t.name === S.orgDept));
       const ppl = D().users.filter(u => u.propertyCode === p.code && u.status === 'active').length, pal = Array.isArray(p.palette) ? p.palette : [];
-      return `<div class="section-title">${esc(p.name)} <span class="n">${esc(p.code)}</span></div><div class="menu">
-        <button class="li" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p, '')}<span class="lbl"><div style="font-weight:600">${esc(p.name)}</div><div class="sub">Code ${esc(p.code)} · ${ppl} people · ${pal.length ? pal.length + ' brand colours' : 'no brand palette yet'}</div></span>
+      return `<div class="org-col"><div class="section-title">${esc(p.name)} <span class="n">${esc(p.code)}</span></div><div class="menu">
+        <button class="li org-head" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p, '')}<span class="lbl"><div style="font-weight:600">${esc(p.name)}</div><div class="sub">Code ${esc(p.code)} · ${ppl} people · ${pal.length ? pal.length + ' brand colours' : 'no brand palette yet'}</div></span>
           <span class="pal-mini">${pal.slice(0, 8).map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span><span class="chev faint">${ic('chevR', 's')}</span></button>
         ${ts.map(t => { const n = D().users.filter(u => u.teamId === t.id).length;
           return `<div class="li" style="--inset:62px"><span style="width:36px;display:grid;place-items:center"><span class="dot" style="background:${cvar(t.color)}"></span></span><span class="lbl">${esc(t.name)}</span><span class="val tnum">${n} ${n === 1 ? 'person' : 'people'}</span>
             <button class="circle sm" data-act="editTeam" data-id="${t.id}" aria-label="Edit ${esc(t.name)}">${ic('pencil', 's')}</button>${n ? '' : `<button class="circle sm" data-act="delTeam" data-id="${t.id}" aria-label="Delete ${esc(t.name)}">${ic('trash', 's')}</button>`}</div>`; }).join('')}
-        <div class="addrow" style="--inset:62px">${ic('plus')}<input placeholder="Add team" data-enter="addTeam" data-code="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div>`; }).join('')}`;
+        <div class="addrow" style="--inset:62px">${ic('plus')}<input placeholder="Add team" data-enter="addTeam" data-code="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div></div>`; }).join('')}</div>`;
 }
 
 function peopleHtml() {
@@ -2605,7 +2623,6 @@ function peopleHtml() {
     <p class="lt-sub">${st.users.length} accounts across ${st.props.length} ${st.props.length === 1 ? 'property' : 'properties'}</p>
     ${st.pending.length ? `<div class="section-title" style="margin-top:4px">Waiting for Approval <span class="n tnum">${st.pending.length}</span></div><div class="menu" style="margin-bottom:14px">${st.pending.map(u => `<div class="person">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)} <span class="faint" style="font-weight:400">@${esc(u.username)}</span></div><div class="jt">${esc(teamLabel(teamById(u.teamId)) || u.propertyCode)} · ${esc(u.jobTitle || '—')}</div></div>
       <div class="acts"><button class="btn sm gray" data-act="declineUser" data-id="${u.id}">Decline</button><button class="btn sm primary" data-act="approveUser" data-id="${u.id}">Approve</button></div></div>`).join('')}</div>` : ''}
-    <label class="search" style="width:auto;height:44px;margin:0 4px 10px">${ic('search', 's')}<input id="pp-q" type="search" placeholder="Search name, username, team or job title" value="${esc(S.pq || '')}" data-input="peopleSearch" autocomplete="off"></label>
     <div class="filters pp-f" style="margin:0 4px 6px;justify-content:flex-start;flex-wrap:wrap">
       <button class="pill flt ${S.ppProp && S.ppProp !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppProp">${ic('building', 's')}${esc(lbl(S.ppProp, 'All Properties', v => v))}${ic('chevD', 'xs')}</button>
       <button class="pill flt ${S.ppRole && S.ppRole !== 'all' ? 'on' : ''}" data-act="ppFilter" data-k="ppRole">${ic('person', 's')}${esc(lbl(S.ppRole, 'All Roles', v => ROLE[v]))}${ic('chevD', 'xs')}</button>
@@ -2972,13 +2989,18 @@ function searchResultsHtml(q, inner) {
   const s = q.toLowerCase();
   const tasks = D().tasks.filter(t => taskInScope(t) && ((t.title || '').toLowerCase().includes(s) || (t.notes || '').toLowerCase().includes(s))).slice(0, 40);
   const projs = D().projects.filter(p => projInScope(p) && p.name.toLowerCase().includes(s));
-  const people = D().users.filter(u => visibleUser(u) && userInScope(u) && u.status === 'active' && (u.name.toLowerCase().includes(s) || (u.jobTitle || '').toLowerCase().includes(s)));
-  const none = !tasks.length && !projs.length && !people.length;
+  const adm = isAdminU();
+  const people = D().users.filter(u => (adm ? u.status !== 'declined' : visibleUser(u) && userInScope(u) && u.status === 'active') && [u.name, u.jobTitle, adm ? '@' + u.username : '', adm ? teamLabel(teamById(u.teamId)) : ''].join(' ').toLowerCase().includes(s));
+  const props = adm ? D().properties.filter(p => (p.name + ' ' + p.code).toLowerCase().includes(s)) : [];
+  const teams = adm ? D().teams.filter(t => (t.name + ' ' + t.propertyCode + ' ' + ((propByCode(t.propertyCode) || {}).name || '')).toLowerCase().includes(s)) : [];
+  const none = !tasks.length && !projs.length && !people.length && !props.length && !teams.length;
   return `${inner ? '' : `<h1 class="large-title">Results for “${esc(q)}”</h1>`}
     ${none ? `<div class="menu" style="margin-top:14px">${emptyState('search', 'gray', 'No results', 'Try a different word.')}</div>` : ''}
     ${projs.length ? `<div class="section-title">Projects</div><div class="menu">${projs.map(p => `<button class="li" data-act="openProject" data-id="${p.id}" style="--inset:44px">${pdot(p)}<span class="lbl">${esc(p.name)}</span><span class="chev">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}
     ${tasks.length ? `<div class="section-title">Tasks</div><div class="menu">${tasks.map(t => taskRow(t, { showProject: true, showStatus: true })).join('')}</div>` : ''}
-    ${people.length ? `<div class="section-title">People</div><div class="menu">${people.map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}</div><div class="jt">${esc(u.jobTitle || '')}</div></div>${roleChip(u)}</button>`).join('')}</div>` : ''}`;
+    ${people.length ? `<div class="section-title">People</div><div class="menu">${people.map(u => `<button class="person" data-act="openUser" data-id="${u.id}">${av(u, 'lg')}<div class="who"><div class="nm">${esc(u.name)}${adm ? ` <span class="faint" style="font-weight:400">@${esc(u.username)}</span>` : ''}</div><div class="jt">${esc(adm ? [teamLabel(teamById(u.teamId)), u.jobTitle].filter(Boolean).join(' · ') : u.jobTitle || '')}</div></div>${roleChip(u)}</button>`).join('')}</div>` : ''}
+    ${props.length ? `<div class="section-title">Properties</div><div class="menu">${props.map(p => `<button class="li" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p, '')}<span class="lbl">${esc(p.name)}<div class="sub">Code ${esc(p.code)}</div></span><span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}
+    ${teams.length ? `<div class="section-title">Departments</div><div class="menu">${teams.map(t => `<button class="li" data-act="editTeam" data-id="${t.id}" style="--inset:62px"><span style="width:36px;display:grid;place-items:center;flex:none"><span class="dot" style="background:${cvar(t.color)}"></span></span><span class="lbl">${esc(t.name)}<div class="sub">${esc((propByCode(t.propertyCode) || {}).name || t.propertyCode)}</div></span><span class="chev faint">${ic('chevR', 's')}</span></button>`).join('')}</div>` : ''}`;
 }
 
 function settingsHtml() {
@@ -3442,7 +3464,7 @@ const ACT = {
     else openMenu(el, [{ label: 'All Departments', checked: !S.orgDept || S.orgDept === 'all', onClick: set('all') }, '-', ...[...new Set(D().teams.filter(t => !S.orgProp || S.orgProp === 'all' || t.propertyCode === S.orgProp).map(t => t.name))].sort().map(d => ({ label: d, checked: S.orgDept === d, onClick: set(d) }))]);
   },
   editProperty(el) { const p = propByCode(el.dataset.code); if (p) propertyDialog(p); },
-  adminFab(el) { openMenu(el, [{ label: 'Add Person', icon: ic('personPlus', 's'), onClick: () => addMemberDialog() }, { label: 'Properties & Teams', icon: ic('building', 's'), onClick: () => ACT.orgOpen() }]); },
+  adminFab(el) { openMenu(el, [{ label: 'Person', icon: ic('personPlus', 's'), onClick: () => addMemberDialog() }, { label: 'Property', icon: ic('building', 's'), onClick: () => propertyDialog(null) }, { label: 'Department', icon: ic('people', 's'), onClick: () => teamDialog(null) }]); },
   async adminUnlock(el) { try { await run('unlockUser', { userId: el.dataset.id }, 'Account unlocked'); await sync({ soft: true, force: true }); } catch (e) { } },
   async adminFix(el) {
     const kind = el.dataset.k, needsTeam = !!el.dataset.team;
@@ -4185,12 +4207,17 @@ function propertyDialog(p) {
 }
 
 /* Team editor (main admin): name and colour from the property's palette. */
-function teamDialog(t) {
-  const prop = propByCode(t.propertyCode) || {}; let color = t.color || 'blue';
-  openDialog({ title: 'Edit Team', ok: 'Save', body: `<label class="field"><span>Team name</span><input class="input" id="tm-name" value="${esc(t.name)}"></label>
-    <div class="section-title">Colour</div><div class="menu">${swatchesHtml(color, 'tm', prop.palette)}</div>`,
-    onOpen: root => wireSwatches(root, c => { color = c; }),
-    onOk: async root => { await run('saveTeam', { team: { id: t.id, name: $('#tm-name', root).value, color } }, 'Team saved'); await sync({ force: true }); render({ soft: true }); } });
+function teamDialog(t, code) {
+  const isNew = !t; t = t || { name: '', propertyCode: code || (S.orgProp && S.orgProp !== 'all' ? S.orgProp : (D().properties[0] || {}).code) };
+  let pc = t.propertyCode, color = t.color || ((propByCode(pc) || {}).palette || [])[0] || 'blue';
+  const sw = () => swatchesHtml(color, 'tm', (propByCode(pc) || {}).palette);
+  openDialog({ title: isNew ? 'New Department' : 'Edit Team', ok: isNew ? 'Add' : 'Save', body: `${isNew ? `<label class="field"><span>Property</span><select class="input" id="tm-prop">${D().properties.map(p => `<option value="${esc(p.code)}" ${p.code === pc ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>` : ''}
+    <label class="field"><span>${isNew ? 'Department name' : 'Team name'}</span><input class="input" id="tm-name" value="${esc(t.name)}" placeholder="e.g. Marketing"></label>
+    <div class="section-title">Colour</div><div class="menu" id="tm-sw">${sw()}</div>`,
+    onOpen: root => { wireSwatches(root, c => { color = c; }); const sel = $('#tm-prop', root);
+      if (sel) sel.onchange = () => { pc = sel.value; const pal = (propByCode(pc) || {}).palette || []; if (pal.length && !pal.includes(color)) color = pal[0]; $('#tm-sw', root).innerHTML = sw(); wireSwatches(root, c => { color = c; }); }; },
+    onOk: async root => { const name = $('#tm-name', root).value.trim(); if (!name) { toast('Give the department a name.', true); return false; }
+      await run('saveTeam', { team: isNew ? { propertyCode: pc, name, color } : { id: t.id, name, color } }, isNew ? 'Department added' : 'Team saved'); await sync({ force: true }); render({ soft: true }); } });
 }
 /* The colours a team may use: its property's brand palette when the admin has set one. */
 function paletteFor(teamId) { const t = teamById(teamId) || teamById(me().teamId) || {}; const p = propByCode(t.propertyCode) || {}; return Array.isArray(p.palette) ? p.palette : []; }
