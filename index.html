@@ -920,6 +920,34 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 @media (max-width:1023px){ .adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
 .desk-only-c{display:contents}
+/* sidebar footer: Refresh and Sign Out side by side, a little smaller */
+.sb-acts.sb-row{flex-direction:row;gap:6px}
+.sb-acts.sb-row .sb-item{flex:1;min-height:36px;padding:6px 10px;font-size:15px;gap:8px;justify-content:center}
+.sb-acts.sb-row .sb-item svg{width:18px;height:18px}
+.app-mini{width:40px;height:40px;border-radius:11px;object-fit:cover;flex:none}
+/* project page: ••• beside the name (desktop), in the toolbar on phones */
+.desk-more{display:none}
+@media (min-width:1024px){
+  .desk-more{display:inline-grid;flex:none}
+  .mob-more{display:none!important}
+  /* filter and option menus: hairlines between rows, smaller text, names on one line */
+  .menu-pop{max-width:360px}
+  .menu-pop button{font-size:15px;min-height:38px;border-radius:10px;white-space:nowrap}
+  .menu-pop button+button{position:relative}
+  .menu-pop button+button::before{content:"";position:absolute;top:0;left:12px;right:12px;height:.5px;background:var(--sep)}
+  .menu-pop .mlbl{overflow:hidden;text-overflow:ellipsis}
+}
+/* brand palette editor */
+.pal-ed{display:flex;flex-wrap:wrap;gap:12px;padding:14px 16px}
+.pal-sw{position:relative;width:40px;height:40px}
+.pal-sw>button[data-pc]{width:40px;height:40px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)}
+.pal-sw.on>button[data-pc]{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--text-2)}
+.pal-x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--fill-1,#8e8e93);color:#fff;font-size:13px;line-height:20px;display:grid;place-items:center;opacity:.85}
+.pal-add{width:40px;height:40px;border-radius:50%;border:1.5px dashed var(--text-3);display:grid;place-items:center;color:var(--text-2);position:relative;cursor:pointer}
+.pal-add input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.pal-mini{display:inline-flex;gap:3px;margin-right:6px}
+.pal-mini i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)}
+.sb-nav[hidden]{display:none!important}
 
 </style>
 </head>
@@ -937,7 +965,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
    ===================================================================== */
 
 var TABLES = {
-  properties: ['id','code','name','createdAt','color','logo'],
+  properties: ['id','code','name','createdAt','color','logo','palette'],
   teams:      ['id','propertyCode','name','color','createdAt'],
   users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
@@ -946,7 +974,7 @@ var TABLES = {
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
+var JSON_COLS = { palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -1017,7 +1045,7 @@ function cleanImage(v) {
   if (v.length > MAX_IMAGE_CHARS) fail('That image is too large. Try a smaller one.');
   return v;
 }
-function publicProperty(p) { return { id: p.id, code: p.code, name: p.name, color: p.color || 'blue', logo: p.logo || '' }; }
+function publicProperty(p) { return { id: p.id, code: p.code, name: p.name, color: p.color || 'blue', logo: p.logo || '', palette: Array.isArray(p.palette) ? p.palette : [] }; }
 
 function sha256(ascii) {
   function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
@@ -1659,6 +1687,17 @@ var ACTIONS = {
     var look = {};
     if (r.property.color !== undefined) look.color = str(r.property.color, 20) || 'blue';
     if (r.property.logo !== undefined) look.logo = cleanImage(r.property.logo);
+    if (Array.isArray(r.property.palette)) look.palette = r.property.palette.map(function (c) { return String(c || '').trim().toLowerCase(); })
+      .filter(function (c, i, a) { return /^#[0-9a-f]{6}$/.test(c) && a.indexOf(c) === i; }).slice(0, 24);
+    // renaming a property code: move its teams and people along with it
+    var old = r.property.oldCode ? findProperty(DB, r.property.oldCode) : null;
+    if (old && old.code !== code) {
+      if (findProperty(DB, code)) fail('Another property already uses the code ' + code + '.');
+      DB.all('teams').filter(function (t) { return t.propertyCode === old.code; }).forEach(function (t) { DB.update('teams', t.id, { propertyCode: code }); });
+      DB.all('users').filter(function (x) { return x.propertyCode === old.code; }).forEach(function (x) { DB.update('users', x.id, { propertyCode: code }); });
+      DB.update('properties', old.id, Object.assign({ code: code, name: name }, look));
+      return publicProperty(DB.get('properties', old.id));
+    }
     var ex = findProperty(DB, code);
     if (ex) { DB.update('properties', ex.id, Object.assign({ name: name }, look)); return publicProperty(DB.get('properties', ex.id)); }
     var p = Object.assign({ id: uid('h'), code: code, name: name, color: 'blue', logo: '', createdAt: nowISO() }, look);
@@ -2362,29 +2401,28 @@ function sidebarHtml() {
   const codes = [...new Set(myTeamIds().map(id => (teamById(id) || {}).propertyCode).filter(Boolean))];
   const cluster = !isAdminU() && S.scope === 'all' && codes.length > 1;
   return `<nav class="sidebar glass" aria-label="Sidebar">
-    <div class="sb-head">${cluster ? '' : plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${esc(cluster ? codes.join(' · ') : CONFIG.APP_NAME + ' · ' + (isAdminU() ? 'Main Admin' : teamLabel(teamById(m.teamId))))}</div></div></div>
+    <div class="sb-head">${isAdminU() ? '<img class="plogo app-mini" src="data:image/png;base64,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" alt="">' : cluster ? '' : plogo(prop)}<div style="min-width:0"><div class="sb-title">${esc(isAdminU() ? CONFIG.APP_NAME : cluster ? 'Cluster' : (prop.name || CONFIG.APP_NAME))}</div><div class="sb-sub">${esc(isAdminU() ? 'Main Admin' : cluster ? codes.join(' · ') : CONFIG.APP_NAME + ' · ' + (isAdminU() ? 'Main Admin' : teamLabel(teamById(m.teamId))))}</div></div></div>
     ${multiScope() ? `<button class="scope" data-act="scopeMenu">${ic('building', 's')}<span class="lbl">${esc(scopeName)}</span>${ic('updown', 's')}</button>` : ''}
     <div class="sb-nav">
       ${isAdminU() ? `${nav('home', 'home', 'Dashboard')}
       ${nav('people', 'people', 'People', pend ? `<span class="badge">${pend}</span>` : '')}
       ${nav('activity', 'bell', 'Activity')}
-      <button class="sb-item" data-act="orgOpen">${ic('building')}<span class="lbl">Properties &amp; Teams</span></button>` : `${nav('home', 'home', 'Home')}
+      ${nav('org', 'building', 'Properties &amp; Teams')}` : `${nav('home', 'home', 'Home')}
       ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
       ${nav('activity', 'bell', 'Activity')}
       ${nav('team', 'people', 'Team', pend ? `<span class="badge">${pend}</span>` : '')}
       ${nav('workload', 'chart', 'Workload')}`}
     </div>
-    <div class="sb-sec"><button class="sb-tog ${SBC._all ? 'closed' : ''}" data-act="sbToggle" data-k="_all" aria-expanded="${!SBC._all}">${ic('chevD', 'xs')}<span>Projects</span>${SBC._all ? `<span class="n">${projects().length}</span>` : ''}</button><button class="circle sm" style="width:26px;height:26px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
-    <div class="sb-nav" ${SBC._all ? 'hidden' : ''}>
+    <div class="sb-sec"><button class="sb-tog ${SBC._open ? '' : 'closed'}" data-act="sbToggle" data-k="_open" aria-expanded="${!!SBC._open}">${ic('chevD', 'xs')}<span>Projects</span>${SBC._open ? '' : `<span class="n">${projects().length}</span>`}</button><button class="circle sm" style="width:26px;height:26px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
+    <div class="sb-nav" ${SBC._open ? '' : 'hidden'}>
       ${(() => { const item = p => `<button class="sb-item ${S.view === 'project' && S.projectId === p.id ? 'on' : ''}" data-act="openProject" data-id="${p.id}">${pdot(p)}<span class="lbl">${esc(p.name)}</span><span class="n tnum">${topTasks(p.id).filter(t => !isDone(t)).length || ''}</span></button>`;
         if (!multiProp()) return projects().map(item).join('');
         const gs = groupProjects(projects()), cur = S.view === 'project' && gs.find(([, l]) => l.some(p => p.id === S.projectId)), def = (cur || gs[0] || [''])[0];
         return gs.map(([k, l]) => { const o = accOpen('sb', k, def); return `<button class="sb-grp ${o ? '' : 'closed'}" data-act="acc" data-g="sb" data-k="${esc(k)}" aria-expanded="${o}">${ic('chevD', 'xs')}<span>${esc(k)}</span><span class="n">${l.length}</span></button>${accPanel('sb', k, o, l.map(item).join(''))}`; }).join(''); })()}
     </div>
-    <div class="sb-nav">${nav('projects', 'folder', 'All Projects')}</div>
     <div class="sb-foot">
       <div class="sb-sync" id="sbsync" data-s="${Outbox.state}">${ic(Outbox.state === 'idle' ? 'cloud' : Outbox.state === 'saving' ? 'up' : 'alert')}<span>${esc(syncLabel())}</span></div>
-      <div class="sb-acts"><button class="sb-item" data-act="refresh">${ic('refresh')}<span class="lbl">Refresh</span></button>
+      <div class="sb-acts sb-row"><button class="sb-item" data-act="refresh">${ic('refresh')}<span class="lbl">Refresh</span></button>
         <button class="sb-item danger" data-act="signOut">${ic('out')}<span class="lbl">Sign Out</span></button></div>
       <button class="me-btn" data-act="go" data-v="settings">${av(m, 'lg')}<div style="min-width:0;flex:1"><b>${esc(m.name)}</b><small>${esc(m.jobTitle || ROLE[m.role])}</small></div>${ic('gear', 's')}</button>
     </div>
@@ -2428,7 +2466,7 @@ function renderTabs() {
 }
 
 /* ---------------- navbar ---------------- */
-const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', people: 'People', workload: 'Workload', settings: 'Settings', activity: 'Activity', search: 'Search' };
+const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', people: 'People', org: 'Properties & Teams', workload: 'Workload', settings: 'Settings', activity: 'Activity', search: 'Search' };
 function navbarHtml() {
   const p = S.view === 'project' ? projById(S.projectId) : null;
   const title = p ? esc(p.name) : TITLES[S.view] || '';
@@ -2453,6 +2491,7 @@ function viewHtml() {
   switch (S.view) {
     case 'home': return isAdminU() ? adminHomeHtml() : homeHtml();
     case 'people': return peopleHtml();
+    case 'org': return orgHtml();
     case 'mytasks': return myTasksHtml();
     case 'projects': return projectsHtml();
     case 'project': return projectHtml();
@@ -2528,6 +2567,28 @@ function adminHomeHtml() {
     ${recent.length ? `<div class="section-title">Recently Active</div><div class="menu">${recent.map(u => personLi(u, lastSeenText(st.info(u.id).lastSeen) + ' · ' + st.info(u.id).devices + (st.info(u.id).devices === 1 ? ' device' : ' devices'))).join('')}</div>` : ''}
     ${newcomers.length ? `<div class="section-title">New in the Last 14 Days</div><div class="menu">${newcomers.map(u => personLi(u, (u.status === 'pending' ? 'Waiting for approval · ' : '') + (teamLabel(teamById(u.teamId)) || u.propertyCode))).join('')}</div>` : ''}`;
 }
+/* Main admin: Properties & Teams as a full page, with property and department filters. */
+function orgHtml() {
+  const props = D().properties.filter(p => !S.orgProp || S.orgProp === 'all' || p.code === S.orgProp);
+  const depts = [...new Set(D().teams.map(t => t.name))].sort();
+  const pName = S.orgProp && S.orgProp !== 'all' ? (propByCode(S.orgProp) || {}).name : '';
+  return `<div style="display:flex;align-items:center;gap:8px"><h1 class="large-title" style="flex:1;min-width:0">Properties &amp; Teams</h1>
+      <button class="btn primary sm" data-act="newProperty">${ic('plus', 's')}<span>Add Property</span></button></div>
+    <p class="lt-sub">${D().properties.length} properties · ${D().teams.length} teams. People type the property code when they sign up, then choose their team.</p>
+    <div class="ctl-row"><span></span><div class="filters">${(S.orgProp && S.orgProp !== 'all') || (S.orgDept && S.orgDept !== 'all') ? '<button class="link" data-act="orgFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}
+      <button class="pill flt ${pName ? 'on' : ''}" data-act="orgFilter" data-k="orgProp">${ic('building', 's')}${esc(pName || 'All Properties')}${ic('chevD', 'xs')}</button>
+      <button class="pill flt ${S.orgDept && S.orgDept !== 'all' ? 'on' : ''}" data-act="orgFilter" data-k="orgDept">${ic('people', 's')}${esc(S.orgDept && S.orgDept !== 'all' ? S.orgDept : 'All Departments')}${ic('chevD', 'xs')}</button></div></div>
+    ${props.map(p => { const ts = D().teams.filter(t => t.propertyCode === p.code && (!S.orgDept || S.orgDept === 'all' || t.name === S.orgDept));
+      const ppl = D().users.filter(u => u.propertyCode === p.code && u.status === 'active').length, pal = Array.isArray(p.palette) ? p.palette : [];
+      return `<div class="section-title">${esc(p.name)} <span class="n">${esc(p.code)}</span></div><div class="menu">
+        <button class="li" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p, '')}<span class="lbl"><div style="font-weight:600">${esc(p.name)}</div><div class="sub">Code ${esc(p.code)} · ${ppl} people · ${pal.length ? pal.length + ' brand colours' : 'no brand palette yet'}</div></span>
+          <span class="pal-mini">${pal.slice(0, 8).map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span><span class="chev faint">${ic('chevR', 's')}</span></button>
+        ${ts.map(t => { const n = D().users.filter(u => u.teamId === t.id).length;
+          return `<div class="li" style="--inset:62px"><span style="width:36px;display:grid;place-items:center"><span class="dot" style="background:${cvar(t.color)}"></span></span><span class="lbl">${esc(t.name)}</span><span class="val tnum">${n} ${n === 1 ? 'person' : 'people'}</span>
+            <button class="circle sm" data-act="editTeam" data-id="${t.id}" aria-label="Edit ${esc(t.name)}">${ic('pencil', 's')}</button>${n ? '' : `<button class="circle sm" data-act="delTeam" data-id="${t.id}" aria-label="Delete ${esc(t.name)}">${ic('trash', 's')}</button>`}</div>`; }).join('')}
+        <div class="addrow" style="--inset:62px">${ic('plus')}<input placeholder="Add team" data-enter="addTeam" data-code="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div>`; }).join('')}`;
+}
+
 function peopleHtml() {
   const st = adminState(), q = (S.pq || '').trim().toLowerCase();
   const stOf = u => u.status === 'pending' ? 'pending' : u.status === 'disabled' ? 'off' : st.info(u.id).locked ? 'locked' : 'active';
@@ -2573,7 +2634,7 @@ function homeHtml() {
     <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
     ${pend.length ? `<button class="banner" data-act="goRequests"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span>
       <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="d">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
-    <div class="section-title">Projects <span class="n tnum">${projs.length}</span><span class="sp"></span><button class="link" data-act="newProject">New Project</button></div>
+    <div class="section-title">Projects <span class="n tnum">${projs.length}</span><span class="sp"></span><button class="link mob-only" data-act="newProject">New Project</button></div>
     ${projs.length ? `<div class="pgrid">${projs.map(projectCard).join('')}</div>` : `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Create the first project for your team.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`}
 `;
 }
@@ -2685,7 +2746,7 @@ function projectHtml() {
   const modes = [['list', 'list', 'List'], ['board', 'board', 'Board'], ['calendar', 'cal', 'Calendar']];
   const body = S.mode === 'board' ? boardHtml(p) : S.mode === 'calendar' ? calendarHtml(p) : listHtml(p);
   const finished = pr.total > 0 && pr.done === pr.total && !p.archived && canManageProj(p);
-  return `<div class="phead">${pdot(p, 'lg')}<div style="min-width:0;flex:1"><h1>${esc(p.name)}<button class="btn sm gray exp-btn" data-act="exportMenu" aria-label="Export project">${ic('download', 's')}<span>Export</span></button></h1>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}</div></div>
+  return `<div class="phead"><div style="min-width:0;flex:1"><h1>${esc(p.name)}<button class="circle flat sm desk-more" data-act="projMenu" aria-label="Project options">${ic('more')}</button><button class="btn sm gray exp-btn" data-act="exportMenu" aria-label="Export project">${ic('download', 's')}<span>Export</span></button></h1>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}</div></div>
     ${finished ? `<div class="banner done-banner"><span class="ico" style="background:var(--green);border-radius:50%">${ic('check')}</span><div style="flex:1;min-width:0"><div class="t">All ${pr.total} tasks are done</div><div class="d">Archive the project to move it out of your project list. You can restore it any time.</div></div><button class="btn primary sm" data-act="archiveProject" data-id="${p.id}">Archive</button></div>` : ''}
     <div class="controls">
       <div class="pstats"><button data-act="projStatus" aria-label="Project status">${pillHtml(ps)}</button>
@@ -2697,7 +2758,7 @@ function projectHtml() {
       <button class="btn sm gray mob-only-f" data-act="viewMenu">${ic((modes.find(x => x[0] === S.mode) || modes[0])[1], 's')}<span>${(modes.find(x => x[0] === S.mode) || modes[0])[2]}</span>${ic('chevD', 'xs')}</button>
       <div class="seg desk-seg" id="seg-mode">${modes.map(([k, i, l]) => `<button class="${S.mode === k ? 'on' : ''}" data-act="mode" data-m="${k}" aria-label="${l} view">${ic(i, 's')}<span>${l}</span></button>`).join('')}</div>
       <button class="btn sm ${pfCount() ? '' : 'gray'}" data-act="projFilter" style="${pfCount() ? 'background:var(--accent-soft)' : ''}">${ic('filter', 's')}<span>Filter${pfCount() ? ' · ' + pfCount() : ''}</span></button>
-      <button class="circle flat sm" data-act="projMenu" aria-label="Project options">${ic('more')}</button>
+      <button class="circle flat sm mob-more" data-act="projMenu" aria-label="Project options">${ic('more')}</button>
       ${S.mode === 'board' && canEditStages(p) ? `<button class="btn sm gray desk-tool" data-act="editStages">${ic('plus', 's')}<span>Stage</span></button>` : ''}
       ${S.mode === 'list' ? (() => { const all = allOpen(p); return `<button class="btn sm gray desk-tool" data-act="expandAll" data-on="${all ? 0 : 1}">${ic(all ? 'chevU' : 'chevD', 's')}<span>${all ? 'Collapse All' : 'Expand All'}</span></button>`; })() : ''}
     </div>${body}`;
@@ -3368,9 +3429,20 @@ const ACT = {
       } });
   },
   /* ---------- main admin ---------- */
-  orgOpen() { orgDialog(); },
+  orgOpen() { nav(() => { S.view = 'org'; }); },
+  newProperty() { propertyDialog(null); },
+  editTeam(el) { const t = teamById(el.dataset.id); if (t) teamDialog(t); },
+  async delTeam(el) { const t = teamById(el.dataset.id); if (!t || !await confirmBox({ title: 'Delete ' + t.name + '?', msg: 'Only empty teams can be deleted.', ok: 'Delete', danger: true })) return; try { await run('deleteTeam', { id: t.id }, 'Team deleted'); await sync({ force: true }); render({ soft: true }); } catch (e) { } },
+  async addTeam(el) { const v = el.value.trim(); if (!v) return; const pal = (propByCode(el.dataset.code) || {}).palette || [];
+    try { await run('saveTeam', { team: { propertyCode: el.dataset.code, name: v, color: pal[0] || PCOLORS[Math.floor(Math.random() * 10)] } }, 'Team added'); await sync({ force: true }); render({ soft: true }); } catch (e) { } },
+  orgFilter(el) {
+    const k = el.dataset.k, set = v => () => { S[k] = v; render({ soft: true }); };
+    if (k === 'clear') { S.orgProp = S.orgDept = 'all'; render({ soft: true }); return; }
+    if (k === 'orgProp') openMenu(el, [{ label: 'All Properties', checked: !S.orgProp || S.orgProp === 'all', onClick: set('all') }, '-', ...D().properties.map(p => ({ label: p.name, checked: S.orgProp === p.code, onClick: set(p.code) }))]);
+    else openMenu(el, [{ label: 'All Departments', checked: !S.orgDept || S.orgDept === 'all', onClick: set('all') }, '-', ...[...new Set(D().teams.filter(t => !S.orgProp || S.orgProp === 'all' || t.propertyCode === S.orgProp).map(t => t.name))].sort().map(d => ({ label: d, checked: S.orgDept === d, onClick: set(d) }))]);
+  },
   editProperty(el) { const p = propByCode(el.dataset.code); if (p) propertyDialog(p); },
-  adminFab(el) { openMenu(el, [{ label: 'Add Person', icon: ic('personPlus', 's'), onClick: () => addMemberDialog() }, { label: 'Properties & Teams', icon: ic('building', 's'), onClick: () => orgDialog() }]); },
+  adminFab(el) { openMenu(el, [{ label: 'Add Person', icon: ic('personPlus', 's'), onClick: () => addMemberDialog() }, { label: 'Properties & Teams', icon: ic('building', 's'), onClick: () => ACT.orgOpen() }]); },
   async adminUnlock(el) { try { await run('unlockUser', { userId: el.dataset.id }, 'Account unlocked'); await sync({ soft: true, force: true }); } catch (e) { } },
   async adminFix(el) {
     const kind = el.dataset.k, needsTeam = !!el.dataset.team;
@@ -3382,7 +3454,7 @@ const ACT = {
   ppFilter(el) {
     const k = el.dataset.k, set = v => () => { S[k] = v; render({ soft: true }); };
     if (k === 'clear') { S.ppProp = S.ppRole = S.ppStatus = 'all'; render({ soft: true }); return; }
-    if (k === 'ppProp') openMenu(el, [{ label: 'All Properties', checked: !S.ppProp || S.ppProp === 'all', onClick: set('all') }, '-', ...D().properties.map(p => ({ label: p.code + ' · ' + p.name, checked: S.ppProp === p.code, onClick: set(p.code) }))]);
+    if (k === 'ppProp') openMenu(el, [{ label: 'All Properties', checked: !S.ppProp || S.ppProp === 'all', onClick: set('all') }, '-', ...D().properties.map(p => ({ label: p.name, checked: S.ppProp === p.code, onClick: set(p.code) }))]);
     else if (k === 'ppRole') openMenu(el, [['all', 'All Roles'], ['admin', ROLE.admin], ['head', ROLE.head], ['member', ROLE.member]].map(([v, l]) => ({ label: l, checked: (S.ppRole || 'all') === v, onClick: set(v) })));
     else openMenu(el, [['all', 'Any Status'], ['active', 'Active'], ['pending', 'Waiting for Approval'], ['locked', 'Locked Out'], ['off', 'Turned Off']].map(([v, l]) => ({ label: l, checked: (S.ppStatus || 'all') === v, onClick: set(v) })));
   },
@@ -3667,15 +3739,16 @@ function addMemberDialog() {
     } });
 }
 
-function swatchesHtml(sel, name) {
-  const custom = sel && sel[0] === '#';
+function swatchesHtml(sel, name, palette) {
+  const custom = sel && sel[0] === '#', pal = Array.isArray(palette) && palette.length ? palette : null;
+  if (pal) return `<div class="swatches" data-sw-group="${name}">${pal.map(c => `<button type="button" data-sw="${c}" class="${sel === c ? 'on' : ''}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>`;
   return `<div class="swatches" data-sw-group="${name}">${PCOLORS.map(c => `<button type="button" data-sw="${c}" class="${sel === c ? 'on' : ''}" style="background:${cvar(c)}" aria-label="${c}"></button>`).join('')}
     <label class="${custom ? 'on' : ''}" title="Custom colour" style="${custom ? 'background:' + sel : ''}"><input type="color" value="${custom ? sel : '#1e3a8a'}" aria-label="Custom colour"></label></div>`;
 }
 function wireSwatches(root, onPick) {
   const box = $('[data-sw-group]', root);
   $$('[data-sw]', box).forEach(b => b.onclick = () => { $$('.on', box).forEach(x => x.classList.remove('on')); b.classList.add('on'); Motion.haptic(); onPick(b.dataset.sw); });
-  const lab = $('label', box), inp = $('input', lab);
+  const lab = $('label', box); if (!lab) return; const inp = $('input', lab);
   inp.oninput = () => { $$('.on', box).forEach(x => x.classList.remove('on')); lab.classList.add('on'); lab.style.background = inp.value; onPick(inp.value); };
 }
 
@@ -3687,7 +3760,7 @@ function projectDialog(p) {
     <div style="display:flex;flex-direction:column;gap:10px"><input class="input" id="pj-name" placeholder="Project name" value="${esc(p.name)}" autofocus aria-label="Project name">
     <textarea class="input" id="pj-desc" placeholder="What is this project about?" style="min-height:76px" aria-label="Description">${esc(p.description || '')}</textarea></div>
     <div class="section-title">Colour</div>
-    <div class="menu">${swatchesHtml(color, 'pj')}</div>
+    <div class="menu">${swatchesHtml(color, 'pj', paletteFor(p.teamId || (S.scope !== 'all' ? S.scope : me().teamId)))}</div>
     <div class="section-title">Details</div>
     <div class="menu">
       ${isNew && multiScope() ? `<div class="li"><span class="ico" style="background:var(--indigo)">${ic('people')}</span><span class="lbl">Team</span><select class="sel" id="pj-team" aria-label="Team">${teams.filter(t => myTeamIds().includes(t.id)).map(t => `<option value="${t.id}" ${t.id === scopeTeamId() ? 'selected' : ''}>${esc(teamLabel(t))}</option>`).join('')}</select></div>` : ''}
@@ -4077,30 +4150,50 @@ function userDialog(u, approving) {
 }
 
 function propertyDialog(p) {
-  const isNew = !p; p = p || { code: '', name: '', color: 'blue', logo: '' };
-  let color = p.color || 'blue', logo = p.logo || '';
+  const isNew = !p; p = p || { code: '', name: '', color: '#2f6fed', logo: '', palette: [] };
+  let color = p.color || '#2f6fed', logo = p.logo || '', pal = (p.palette || []).slice();
   const prev = () => `<span class="logo-box" style="background:${logo ? '#fff' : cvar(color)}">${logo ? `<img src="${esc(logo)}" alt="">` : esc((p.code || 'NEW').slice(0, 2))}</span>`;
-  openDialog({ title: isNew ? 'New Property' : p.code, ok: isNew ? 'Add' : 'Save', body: `
+  const palHtml = () => `<div class="pal-ed">${pal.map(c => `<span class="pal-sw ${c === color ? 'on' : ''}"><button type="button" data-pc="${c}" style="background:${c}" aria-label="Use ${c} as the main colour"></button><button type="button" class="pal-x" data-px="${c}" aria-label="Remove ${c}">×</button></span>`).join('')}
+    <label class="pal-add" title="Add a colour"><input type="color" value="#1e3a8a" aria-label="Pick a colour"><span>${ic('plus', 's')}</span></label></div>`;
+  openDialog({ title: isNew ? 'New Property' : p.name, ok: isNew ? 'Add' : 'Save', body: `
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin:6px 0 16px"><button id="pl-box" aria-label="Choose logo" style="border-radius:22px">${prev()}</button>
       <div style="display:flex;gap:8px"><button class="btn plain" id="pl-choose">${logo ? 'Change Logo' : 'Add Logo'}</button><button class="btn plain" id="pl-remove" style="color:var(--red)" ${logo ? '' : 'hidden'}>Remove</button></div></div>
-    ${isNew ? `<label class="field"><span>Property code</span><input class="input" id="pl-code" placeholder="e.g. DXBPI" style="text-transform:uppercase" autofocus></label>` : ''}
+    <label class="field"><span>Property code</span><input class="input" id="pl-code" value="${esc(p.code)}" placeholder="e.g. DXBPI" style="text-transform:uppercase" ${isNew ? 'autofocus' : ''}></label>
+    ${isNew ? '' : '<p class="section-foot" style="margin-top:-4px">Changing the code moves all its teams and people with it. Everyone then signs in with the new code.</p>'}
     <label class="field"><span>Property name</span><input class="input" id="pl-name" value="${esc(p.name)}" placeholder="Hotel name"></label>
-    <div class="section-title" style="margin-top:6px">Brand colour</div>
-    <div class="menu">${swatchesHtml(color, 'pl')}</div>
-    <p class="section-foot">Everyone at this property sees ${CONFIG.APP_NAME} in this colour, with the logo on the sign-in screen and sidebar. Logos with a transparent background look best.</p>`,
+    <div class="section-title" style="margin-top:6px">Brand palette</div>
+    <div class="menu" id="pl-pal">${palHtml()}</div>
+    <p class="section-foot">Add every colour from the property’s brand guide with ＋. Teams at this property pick project colours from this palette. Tap a colour to make it the main one; Orbit uses it for the property’s accent, logo tile and sidebar.</p>`,
     onOpen: root => {
-      const redraw = () => { $('#pl-box', root).innerHTML = prev(); $('#pl-remove', root).hidden = !logo; $('#pl-choose', root).textContent = logo ? 'Change Logo' : 'Add Logo'; };
-      wireSwatches(root, c => { color = c; redraw(); });
+      const redraw = () => { $('#pl-box', root).innerHTML = prev(); $('#pl-remove', root).hidden = !logo; $('#pl-choose', root).textContent = logo ? 'Change Logo' : 'Add Logo'; $('#pl-pal', root).innerHTML = palHtml(); wirePal(); };
+      const wirePal = () => {
+        $$('[data-pc]', root).forEach(b => b.onclick = () => { color = b.dataset.pc; Motion.haptic(); redraw(); });
+        $$('[data-px]', root).forEach(b => b.onclick = () => { pal = pal.filter(c => c !== b.dataset.px); if (color === b.dataset.px) color = pal[0] || color; redraw(); });
+        const inp = $('.pal-add input', root); inp.onchange = () => { const c = inp.value.toLowerCase(); if (!pal.includes(c)) pal.push(c); if (pal.length === 1) color = c; redraw(); };
+      };
+      wirePal();
       const choose = async () => { const d = await pickImage({ max: 240, keepAlpha: true }); if (d) { logo = d; redraw(); } };
       $('#pl-box', root).onclick = choose; $('#pl-choose', root).onclick = choose;
       $('#pl-remove', root).onclick = () => { logo = ''; redraw(); };
     },
     onOk: async root => {
-      const code = isNew ? $('#pl-code', root).value : p.code, name = $('#pl-name', root).value;
-      await run('saveProperty', { property: { code, name, color, logo } }, isNew ? 'Property added' : 'Saved');
-      await sync({ force: true }); orgDialogRefresh();
+      const code = $('#pl-code', root).value, name = $('#pl-name', root).value;
+      if (!isNew && code.trim().toUpperCase() !== p.code && !await confirmBox({ title: 'Change the code to ' + code.trim().toUpperCase() + '?', msg: 'Everyone at ' + p.name + ' will sign in with the new code from now on.', ok: 'Change Code' })) return false;
+      await run('saveProperty', { property: { code, oldCode: isNew ? '' : p.code, name, color, logo, palette: pal } }, isNew ? 'Property added' : 'Saved');
+      await sync({ force: true }); orgDialogRefresh(); render({ soft: true });
     } });
 }
+
+/* Team editor (main admin): name and colour from the property's palette. */
+function teamDialog(t) {
+  const prop = propByCode(t.propertyCode) || {}; let color = t.color || 'blue';
+  openDialog({ title: 'Edit Team', ok: 'Save', body: `<label class="field"><span>Team name</span><input class="input" id="tm-name" value="${esc(t.name)}"></label>
+    <div class="section-title">Colour</div><div class="menu">${swatchesHtml(color, 'tm', prop.palette)}</div>`,
+    onOpen: root => wireSwatches(root, c => { color = c; }),
+    onOk: async root => { await run('saveTeam', { team: { id: t.id, name: $('#tm-name', root).value, color } }, 'Team saved'); await sync({ force: true }); render({ soft: true }); } });
+}
+/* The colours a team may use: its property's brand palette when the admin has set one. */
+function paletteFor(teamId) { const t = teamById(teamId) || teamById(me().teamId) || {}; const p = propByCode(t.propertyCode) || {}; return Array.isArray(p.palette) ? p.palette : []; }
 
 let orgOpen = false;
 function orgBody() {

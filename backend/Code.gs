@@ -148,7 +148,7 @@ var SheetDB = (function () {
    ===================================================================== */
 
 var TABLES = {
-  properties: ['id','code','name','createdAt','color','logo'],
+  properties: ['id','code','name','createdAt','color','logo','palette'],
   teams:      ['id','propertyCode','name','color','createdAt'],
   users:      ['id','propertyCode','teamId','username','name','jobTitle','role','status','pinHash','salt','failed','lockedUntil','avatarColor','createdAt','approvedBy','approvedAt','photo','photoV','teamIds'],
   sessions:   ['id','userId','createdAt','lastSeen'],
@@ -157,7 +157,7 @@ var TABLES = {
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt']
 };
-var JSON_COLS = { assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
+var JSON_COLS = { palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -228,7 +228,7 @@ function cleanImage(v) {
   if (v.length > MAX_IMAGE_CHARS) fail('That image is too large. Try a smaller one.');
   return v;
 }
-function publicProperty(p) { return { id: p.id, code: p.code, name: p.name, color: p.color || 'blue', logo: p.logo || '' }; }
+function publicProperty(p) { return { id: p.id, code: p.code, name: p.name, color: p.color || 'blue', logo: p.logo || '', palette: Array.isArray(p.palette) ? p.palette : [] }; }
 
 function sha256(ascii) {
   function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
@@ -870,6 +870,17 @@ var ACTIONS = {
     var look = {};
     if (r.property.color !== undefined) look.color = str(r.property.color, 20) || 'blue';
     if (r.property.logo !== undefined) look.logo = cleanImage(r.property.logo);
+    if (Array.isArray(r.property.palette)) look.palette = r.property.palette.map(function (c) { return String(c || '').trim().toLowerCase(); })
+      .filter(function (c, i, a) { return /^#[0-9a-f]{6}$/.test(c) && a.indexOf(c) === i; }).slice(0, 24);
+    // renaming a property code: move its teams and people along with it
+    var old = r.property.oldCode ? findProperty(DB, r.property.oldCode) : null;
+    if (old && old.code !== code) {
+      if (findProperty(DB, code)) fail('Another property already uses the code ' + code + '.');
+      DB.all('teams').filter(function (t) { return t.propertyCode === old.code; }).forEach(function (t) { DB.update('teams', t.id, { propertyCode: code }); });
+      DB.all('users').filter(function (x) { return x.propertyCode === old.code; }).forEach(function (x) { DB.update('users', x.id, { propertyCode: code }); });
+      DB.update('properties', old.id, Object.assign({ code: code, name: name }, look));
+      return publicProperty(DB.get('properties', old.id));
+    }
     var ex = findProperty(DB, code);
     if (ex) { DB.update('properties', ex.id, Object.assign({ name: name }, look)); return publicProperty(DB.get('properties', ex.id)); }
     var p = Object.assign({ id: uid('h'), code: code, name: name, color: 'blue', logo: '', createdAt: nowISO() }, look);
