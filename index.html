@@ -976,6 +976,17 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 :root[data-theme="dark"] .swatches button,:root[data-theme="dark"] .swatches label,:root[data-theme="dark"] .dot,:root[data-theme="dark"] .pal-sw,:root[data-theme="dark"] .pal-mini i{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
 :root[data-theme="dark"] .swatches button.on,:root[data-theme="dark"] .swatches label.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text-3),inset 0 0 0 1px rgba(255,255,255,.22)}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .swatches button.on,:root:not([data-theme="light"]) .swatches label.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text-3),inset 0 0 0 1px rgba(255,255,255,.22)} }
+/* Processing state: spinner on the control that was tapped; further taps are ignored until the server answers */
+@keyframes spin{to{transform:rotate(360deg)}}
+.is-busy{pointer-events:none;cursor:progress}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--spin,var(--text-2));border-right-color:transparent;animation:spin .7s linear infinite;flex:none;display:inline-block;box-sizing:border-box}
+.btn.primary,.btn.danger,.circle.tint{--spin:var(--on-accent)}
+.btn.danger{--spin:#fff}
+:not(.busy-row).is-busy{position:relative}
+:not(.busy-row).is-busy>:not(.spin){visibility:hidden}
+:not(.busy-row).is-busy>.spin{position:absolute;inset:0;margin:auto}
+.busy-row.is-busy>:not(.spin){opacity:.45;transition:opacity .2s}
+.busy-row.is-busy>.spin{margin-left:auto}
 
 </style>
 </head>
@@ -2347,7 +2358,27 @@ function rememberMe() {
   const m = me(), p = propByCode(m.propertyCode) || {};
   store.set('orbit_last', { code: m.propertyCode, username: m.username, name: m.name, photo: photoOf(m), color: p.color || 'blue', logo: p.logo || '', pname: p.name || '' });
 }
+/* Busy state: the control that started a server action shows a spinner and ignores further taps until it finishes. */
+let PENDING_EL = null;
+function busyOn(el) {
+  if (!el || !el.isConnected || el.classList.contains('is-busy')) return;
+  const host = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? (el.closest('.addrow,.search,label') || el) : el;
+  el.classList.add('is-busy'); host.classList.add('is-busy'); host.classList.toggle('busy-row', host !== el || /\b(li|person|addrow)\b/.test(host.className));
+  el.setAttribute('aria-busy', 'true'); if ('disabled' in el) el.disabled = true;
+  if (!host.querySelector(':scope>.spin')) host.insertAdjacentHTML('beforeend', '<span class="spin" aria-hidden="true"></span>');
+}
+function busyOff(el) {
+  if (!el) return; const host = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? (el.closest('.addrow,.search,label') || el) : el;
+  [el, host].forEach(x => x.classList.remove('is-busy', 'busy-row')); el.removeAttribute('aria-busy'); if ('disabled' in el) el.disabled = false;
+  const sp = host.querySelector(':scope>.spin'); if (sp) sp.remove();
+}
+function runAct(fn, el, e) {
+  if (el.dataset.busy) return;
+  el.dataset.busy = '1'; PENDING_EL = el;
+  Promise.resolve().then(() => fn(el, e)).catch(() => { }).finally(() => { delete el.dataset.busy; busyOff(el); if (PENDING_EL === el) PENDING_EL = null; });
+}
 async function run(action, payload, okMsg) {
+  if (PENDING_EL && PENDING_EL.dataset.busy && !PENDING_EL.closest('#ov')) busyOn(PENDING_EL);
   try { const r = await API.call(action, payload); if (okMsg) toast(okMsg); return r; }
   catch (e) { toast(e.message, true); throw e; }
 }
@@ -3254,10 +3285,10 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-dact]'); if (!el) return;
   if (el.dataset.dact === 'close') return closeDialog();
   if (el.dataset.dact === 'ok' && DLG && DLG.onOk) {
-    el.disabled = true;
+    if (el.dataset.busy) return; el.dataset.busy = '1'; busyOn(el);
     try { const r = await DLG.onOk($('#ov')); if (r !== false) closeDialog(); }
     catch (err) { toast(err.message, true); }
-    finally { if (el.isConnected) el.disabled = false; }
+    finally { delete el.dataset.busy; if (el.isConnected) busyOff(el); }
   }
 });
 function confirmBox({ title, msg = '', ok = 'OK', danger = false, cancel = 'Cancel', single = false }) {
@@ -4698,7 +4729,7 @@ document.addEventListener('click', e => {
   if (el.closest('#ov') && !['openTask', 'openProject'].includes(el.dataset.act)) return;
   if (el.closest('#ov')) closeDialog();
   const fn = ACT[el.dataset.act];
-  if (fn) { e.stopPropagation(); Promise.resolve().then(() => fn(el, e)).catch(() => { }); }
+  if (fn) { e.stopPropagation(); runAct(fn, el, e); }
 });
 document.addEventListener('keydown', e => {
   const t = e.target;
@@ -4707,7 +4738,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && t.tagName === 'INPUT') { const b = $('#lock .btn.primary'); if (b && !b.disabled) b.click(); }
     return;
   }
-  if (e.key === 'Enter' && t.dataset && t.dataset.enter && ACT[t.dataset.enter]) { e.preventDefault(); ACT[t.dataset.enter](t); return; }
+  if (e.key === 'Enter' && t.dataset && t.dataset.enter && ACT[t.dataset.enter]) { e.preventDefault(); runAct(ACT[t.dataset.enter], t, e); return; }
   if (t.id === 'cmt' && MP.list.length && !$('#mpop').hidden) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); MP.i = (MP.i + (e.key === 'ArrowDown' ? 1 : MP.list.length - 1)) % MP.list.length; drawMentions(); return; }
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(MP.i); return; }
