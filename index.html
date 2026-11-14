@@ -950,7 +950,8 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .sb-nav[hidden]{display:none!important}
 
 /* ---- alignment pass: top bar lines up with the page content; search collapses to an icon ---- */
-.org-grid{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
+.org-grid{display:flex;flex-direction:column}
+.org-mcol{display:contents}
 .org-col{min-width:0}
 .li.org-head,.li.adm-prop{padding:14px}
 .org-head .plogo,.adm-prop .plogo{border-radius:calc(var(--r-card) - 14px)}
@@ -964,7 +965,8 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .navbar .search.desk-only:hover,.navbar .search.desk-only:focus-within,.navbar .search.desk-only.has,.navbar .search.desk-only:has(input:not(:placeholder-shown)){width:260px;cursor:text}
   .navbar .search.desk-only:focus-within input{cursor:text}
   .ctl-row .filters,.controls{margin-right:0}
-  .org-grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}
+  .org-grid{flex-direction:row;align-items:flex-start;gap:24px}
+  .org-mcol{display:flex;flex-direction:column;flex:1;min-width:0}
   .menu-pop button{border-radius:16px}
 }
 /* App colour picker in Settings; dark brand colours keep a faint ring so they show on dark surfaces */
@@ -2668,15 +2670,16 @@ function orgHtml() {
     <div class="ctl-row"><span></span><div class="filters">${(S.orgProp && S.orgProp !== 'all') || (S.orgDept && S.orgDept !== 'all') ? '<button class="link" data-act="orgFilter" data-k="clear" style="font-size:15px">Clear</button>' : ''}
       <button class="pill flt ${pName ? 'on' : ''}" data-act="orgFilter" data-k="orgProp">${ic('building', 's')}${esc(pName || 'All Properties')}${ic('chevD', 'xs')}</button>
       <button class="pill flt ${S.orgDept && S.orgDept !== 'all' ? 'on' : ''}" data-act="orgFilter" data-k="orgDept">${ic('people', 's')}${esc(S.orgDept && S.orgDept !== 'all' ? S.orgDept : 'All Departments')}${ic('chevD', 'xs')}</button></div></div>
-    <div class="org-grid">${props.map(p => { const ts = D().teams.filter(t => t.propertyCode === p.code && (!S.orgDept || S.orgDept === 'all' || t.name === S.orgDept));
+    ${(() => { const cols = [[], []], h = [0, 0]; props.forEach((p, i) => { const ts = D().teams.filter(t => t.propertyCode === p.code && (!S.orgDept || S.orgDept === 'all' || t.name === S.orgDept));
       const ppl = D().users.filter(u => u.propertyCode === p.code && u.status === 'active').length, pal = Array.isArray(p.palette) ? p.palette : [];
-      return `<div class="org-col"><div class="section-title">${esc(p.name)} <span class="n">${esc(p.code)}</span></div><div class="menu">
+      const html = `<div class="org-col" style="order:${i}"><div class="section-title">${esc(p.name)} <span class="n">${esc(p.code)}</span></div><div class="menu">
         <button class="li org-head" data-act="editProperty" data-code="${esc(p.code)}" style="--inset:62px">${plogo(p, '')}<span class="lbl"><div style="font-weight:600">${esc(p.name)}</div><div class="sub">Code ${esc(p.code)} · ${ppl} people · ${pal.length ? pal.length + ' brand colours' : 'no brand palette yet'}</div></span>
           <span class="pal-mini">${pal.slice(0, 8).map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span><span class="chev faint">${ic('chevR', 's')}</span></button>
         ${ts.map(t => { const n = D().users.filter(u => u.teamId === t.id).length;
           return `<div class="li" style="--inset:62px"><span style="width:36px;display:grid;place-items:center"><span class="dot" style="background:${cvar(t.color)}"></span></span><span class="lbl">${esc(t.name)}</span><span class="val tnum">${n} ${n === 1 ? 'person' : 'people'}</span>
             <button class="circle sm" data-act="editTeam" data-id="${t.id}" aria-label="Edit ${esc(t.name)}">${ic('pencil', 's')}</button>${n ? '' : `<button class="circle sm" data-act="delTeam" data-id="${t.id}" aria-label="Delete ${esc(t.name)}">${ic('trash', 's')}</button>`}</div>`; }).join('')}
-        <div class="addrow" style="--inset:62px">${ic('plus')}<input placeholder="Add team" data-enter="addTeam" data-code="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div></div>`; }).join('')}</div>`;
+        <div class="addrow" style="--inset:62px">${ic('plus')}<input placeholder="Add team" data-enter="addTeam" data-code="${esc(p.code)}" aria-label="Add team to ${esc(p.code)}"></div></div></div>`; const k = h[0] <= h[1] ? 0 : 1; cols[k].push(html); h[k] += ts.length + 2.4; });
+      return `<div class="org-grid"><div class="org-mcol">${cols[0].join('')}</div><div class="org-mcol">${cols[1].join('')}</div></div>`; })()}`;
 }
 
 function peopleHtml() {
