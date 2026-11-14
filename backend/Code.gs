@@ -353,6 +353,7 @@ function taskOrFail(DB, u, id) {
 var ACTIONS = {
   /* ---------- public: no login needed ---------- */
   teams: function (DB, r) {
+    if (str(r.propertyCode).toUpperCase() === 'ADMIN') return { property: { code: 'ADMIN', name: 'Orbit Main Admin', color: 'blue', logo: '', admin: true }, teams: [] };
     var p = findProperty(DB, r.propertyCode);
     if (!p) fail('We could not find property code "' + str(r.propertyCode).toUpperCase() + '". Check the code with your department head.');
     var teams = DB.all('teams').filter(function (t) { return t.propertyCode === p.code; })
@@ -383,10 +384,19 @@ var ACTIONS = {
   },
 
   login: function (DB, r) {
-    var p = findProperty(DB, r.propertyCode);
-    var username = lc(r.username), pin = str(r.pin);
-    if (!p) fail('Unknown property code.');
-    var u = DB.find('users', function (x) { return x.propertyCode === p.code && lc(x.username) === username; });
+    var code = str(r.propertyCode).toUpperCase(), username = lc(r.username), pin = str(r.pin), u;
+    if (code === 'ADMIN') {
+      // the main admin signs in with the code ADMIN, not tied to any one property
+      u = DB.find('users', function (x) { return x.role === 'admin' && lc(x.username) === username; });
+    } else {
+      var p = findProperty(DB, code);
+      if (!p) fail('Unknown property code.');
+      u = DB.find('users', function (x) { return x.propertyCode === p.code && lc(x.username) === username; });
+      // cluster colleagues can sign in with the code of any property where they belong to a team
+      if (!u) u = DB.find('users', function (x) { return lc(x.username) === username && userTeams(x).some(function (id) { var t = DB.get('teams', id); return t && t.propertyCode === p.code; }); });
+      // the main admin may also use any property code
+      if (!u) u = DB.find('users', function (x) { return x.role === 'admin' && lc(x.username) === username; });
+    }
     if (!u) fail('Username or PIN is incorrect.');
     if (u.lockedUntil && new Date(u.lockedUntil) > new Date()) fail('Too many wrong PINs. Try again after 15 minutes, or ask your department head to reset your PIN.');
     if (pinHash(u.salt, u.username, pin) !== u.pinHash) {

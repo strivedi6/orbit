@@ -1,7 +1,7 @@
 /* Orbit service worker: makes the app installable and opens instantly.
    Pages load fresh from the network when online (so updates arrive right away),
    with the cached copy as a fallback. Data calls to Google are never cached. */
-const CACHE = 'orbit-v40';
+const CACHE = 'orbit-v41';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
