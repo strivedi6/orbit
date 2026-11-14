@@ -787,7 +787,9 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .insp-scrim{background:var(--dim);-webkit-backdrop-filter:blur(0px);backdrop-filter:blur(0px);transition:opacity .4s ease,backdrop-filter .4s ease,-webkit-backdrop-filter .4s ease}
   body.insp-open .insp-scrim{opacity:1;pointer-events:auto;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
   .navbar{padding:14px 24px 8px 12px;min-height:64px}
-  .navbar .nb-title{visibility:hidden}
+  /* desktop: once you scroll, the page title rides in the top bar, small, on the same line as Search and New */
+  .navbar .nb-title{text-align:left;font-size:22px;font-weight:700;letter-spacing:-.4px;padding-left:16px;display:flex;align-items:center;gap:10px;white-space:nowrap;overflow:hidden}
+  .navbar .nb-title>span{overflow:hidden;text-overflow:ellipsis}
   .scroll{padding:0 28px 56px 12px}
   .insp{top:12px;right:12px;bottom:12px;width:var(--insp-w);border-radius:28px;background:var(--panel);
     box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 0 0 .5px var(--sep)}
@@ -916,6 +918,8 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .adm-stats button.wl-stat:active{transform:scale(.97)}
 .adm-prop .plogo{width:34px;height:34px;flex:none}
 @media (max-width:1023px){ .adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+.desk-only-c{display:contents}
 
 </style>
 </head>
@@ -2438,7 +2442,7 @@ function navbarHtml() {
       <label class="search desk-only">${ic('search', 's')}<input id="q" type="search" placeholder="Search" value="${esc(S.q)}" data-input="search" aria-label="Search tasks, projects and people"></label>
       <button class="circle glass mob-only" data-act="go" data-v="search" aria-label="Search">${ic('search')}</button>
       ${isAdminU() ? `<button class="btn primary sm desk-only" data-act="addMember">${ic('personPlus', 's')}<span>Add Person</span></button>` : ''}
-      ${!isAdminU() && S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary sm desk-only" data-act="${newAct}">${ic('plus', 's')}<span>${S.view === 'projects' ? 'New Project' : 'New Task'}</span></button>` : ''}
+      ${!isAdminU() && S.view !== 'team' && S.view !== 'settings' ? `<button class="btn primary sm desk-only" data-act="fabMenu">${ic('plus', 's')}<span>New</span>${ic('chevD', 'xs')}</button>` : ''}
     </div>
   </div>`;
 }
@@ -4575,7 +4579,10 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('focusout', e => { if (e.target.id === 'addcol' && !e.target.value.trim()) setTimeout(() => { if (S.addingCol) { S.addingCol = null; render(); } }, 150); });
 function autosize() { $$('.ttl-edit, #cmt').forEach(t => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, t.id === 'cmt' ? 140 : 400) + 'px'; }); }
-document.addEventListener('scroll', e => { if (e.target.id === 'sc') { const nb = $('#nav'); if (nb) nb.classList.toggle('scrolled', e.target.scrollTop > 34); } }, true);
+document.addEventListener('scroll', e => { if (e.target.id === 'sc') { const nb = $('#nav'); if (!nb) return; const on = e.target.scrollTop > 34;
+  if (on && !nb.classList.contains('scrolled') && innerWidth >= 1024) { // line the small title up with the page content
+    const t = $('.nb-title', nb), h = $('#sc .large-title, #sc h1'); if (t && h) t.style.paddingLeft = Math.max(0, h.getBoundingClientRect().left - nb.getBoundingClientRect().left - parseFloat(getComputedStyle(nb).paddingLeft)) + 'px'; }
+  nb.classList.toggle('scrolled', on); } }, true);
 
 /* board drag & drop */
 let dragId = null;
