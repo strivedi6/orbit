@@ -521,10 +521,14 @@ var ACTIONS = {
     var existing = t.id ? DB.get('tasks', t.id) : null;
     if (existing) { if (!canSeeTask(DB, u, existing)) fail('That task no longer exists.'); existing = JSON.parse(JSON.stringify(existing)); }
     var base = existing || {};
+    // a subtask can be turned into a main task: parentId set to '' moves it up into the parent's project
+    var promote = !!(existing && existing.parentId && t.parentId === '');
+    var oldParent = promote ? DB.get('tasks', existing.parentId) : null;
+    if (promote) { base = JSON.parse(JSON.stringify(base)); base.parentId = ''; if (t.projectId === undefined) t.projectId = oldParent ? oldParent.projectId || '' : base.projectId; }
     var projectId = t.projectId !== undefined ? str(t.projectId) : base.projectId;
     var project = projectId ? DB.get('projects', projectId) : null;
     if (projectId && (!project || !canSeeProject(u, project))) fail('Choose a project you belong to.');
-    var parent = t.parentId || base.parentId ? DB.get('tasks', t.parentId || base.parentId) : null;
+    var parent = !promote && (t.parentId || base.parentId) ? DB.get('tasks', t.parentId || base.parentId) : null;
     var teamId = project ? project.teamId : (parent ? parent.teamId : (existing ? existing.teamId : u.teamId));
     if (!project && !parent && !existing && t.teamId && canSeeTeam(u, t.teamId)) teamId = t.teamId;
     if (project ? !canSeeProject(u, project) : parent ? !canSeeTask(DB, u, parent) : !canSeeTeam(u, teamId)) fail('You can’t add tasks to that team.');
@@ -544,6 +548,7 @@ var ACTIONS = {
     if (t.order !== undefined) f.order = Number(t.order) || 0;
     if (t.projectId !== undefined) f.projectId = projectId || '';
     if (t.assignees !== undefined) f.assignees = (t.assignees || []).filter(function (id) { return team.indexOf(id) >= 0 || admins.indexOf(id) >= 0; });
+    if (promote) { f.parentId = ''; f.projectId = projectId || ''; if (f.status === undefined) f.status = stageIds[0]; }
     f.teamId = teamId; f.updatedAt = nowISO();
     if (doneCol) { if (f.status) f.completedAt = f.status === 'done' ? (base.status === 'done' ? base.completedAt : nowISO()) : ''; }
     else if (t.done !== undefined) f.completedAt = t.done ? (base.completedAt || nowISO()) : '';
