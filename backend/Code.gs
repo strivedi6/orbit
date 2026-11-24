@@ -501,6 +501,35 @@ var ACTIONS = {
     return obj;
   },
 
+  /* Start a new project from an existing one (a template): same stages, tasks and subtasks,
+     due dates moved so the earliest one falls on the chosen start date; nothing is marked done. */
+  duplicateProject: function (DB, r) {
+    var u = auth(DB, r.token), src = DB.get('projects', str(r.projectId));
+    if (!src || !canSeeProject(u, src)) fail('That project no longer exists.');
+    var name = str(r.name, 80); if (!name) fail('Give the project a name.');
+    var teamId = r.teamId && canSeeTeam(u, r.teamId) && DB.get('teams', r.teamId) ? r.teamId : (canSeeTeam(u, src.teamId) ? src.teamId : u.teamId);
+    var now = nowISO(), tasks = DB.all('tasks').filter(function (t) { return t.projectId === src.id; });
+    var dues = tasks.map(function (t) { return t.due; }).filter(Boolean).sort();
+    var dayMs = 86400000, toMs = function (d) { return Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)); };
+    var start = /^\d{4}-\d{2}-\d{2}$/.test(str(r.start)) ? str(r.start) : '';
+    var shift = start && dues.length ? Math.round((toMs(start) - toMs(dues[0])) / dayMs) : 0;
+    var move = function (d) { if (!d || !shift) return d || ''; var x = new Date(toMs(d) + shift * dayMs); return x.toISOString().slice(0, 10); };
+    var people = DB.all('users').filter(function (x) { return x.status === 'active' && userTeams(x).indexOf(teamId) >= 0; }).map(function (x) { return x.id; });
+    var keep = function (list) { return listOf(list).filter(function (id) { return people.indexOf(id) >= 0; }); };
+    var proj = { id: uid('p'), teamId: teamId, name: name, color: src.color || 'blue', icon: src.icon || '', description: /^template\b/i.test(src.name) ? '' : (src.description || ''), ownerId: u.id,
+      status: 'on_track', due: move(src.due), createdBy: u.id, createdAt: now, updatedAt: now, archived: false, stages: src.stages || [],
+      shareTeams: teamId === src.teamId ? (src.shareTeams || []) : [], access: 'team', members: [], managers: [] };
+    DB.insert('projects', proj);
+    var ids = {}; tasks.forEach(function (t) { ids[t.id] = uid('t'); });
+    tasks.sort(function (a, b) { return (a.parentId ? 1 : 0) - (b.parentId ? 1 : 0); }).forEach(function (t) {
+      DB.insert('tasks', { id: ids[t.id], teamId: teamId, projectId: proj.id, parentId: t.parentId ? (ids[t.parentId] || '') : '', title: t.title, notes: t.notes || '',
+        status: t.status, priority: t.priority || 'none', assignees: keep(t.assignees), due: move(t.due), createdBy: u.id, createdAt: now, updatedAt: now,
+        completedAt: '', order: t.order, attachments: [], repeat: t.repeat || '', nextId: '', repeatOn: t.repeatOn || '', subStages: t.subStages || [] });
+    });
+    log(DB, u, teamId, 'project', proj.id, 'created the project ' + proj.name + ' from ' + src.name, []);
+    return { project: proj, tasks: tasks.length };
+  },
+
   deleteProject: function (DB, r) {
     var u = auth(DB, r.token), p = DB.get('projects', r.id);
     if (!p) return { ok: true };
