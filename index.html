@@ -1039,6 +1039,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .ho-pick{cursor:pointer}.ho-pick input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
 .ho-pick .pdot{display:inline-block;vertical-align:middle;margin-right:2px}
 .old-notes{white-space:pre-wrap;line-height:1.5;padding-top:12px;padding-bottom:12px;color:var(--text-2);font-size:15px}
+.sub-more{display:block;width:100%;text-align:left;padding:12px 16px 12px 52px;color:var(--accent);font-size:15px;border-top:.5px solid var(--sep)}
 
 </style>
 </head>
@@ -1963,7 +1964,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795683832';
+const ORBIT_BUILD = '1795684835';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -2227,7 +2228,7 @@ const S = {
   data: null, view: 'home', projectId: null, taskId: null, mode: store.get('orbit_mode', 'list'),
   scope: store.get('orbit_scope', 'all'), myFilter: 'open', teamTab: 'members', actTab: 'me', q: '',
   collapsed: { done: true }, mine: false, calMonth: todayStr().slice(0, 7), addingCol: null, seenAt: store.get('orbit_seen', ''),
-  welcomed: false, pfs: {}, actWho: 'all', actProj: 'all', actDate: 'all', myWho: 'all', myProj: 'all', myTime: 'all', replyTo: null, showDoneSubs: false, editingC: null, teamProp: 'all', teamDept: 'all'
+  welcomed: false, pfs: {}, actWho: 'all', actProj: 'all', actDate: 'all', myWho: 'all', myProj: 'all', myTime: 'all', replyTo: null, showDoneSubs: false, doneMore: {}, editingC: null, teamProp: 'all', teamDept: 'all'
 };
 const D = () => S.data || { users: [], tasks: [], projects: [], teams: [], comments: [], activity: [], properties: [] };
 const me = () => D().me || Session.user || {};
@@ -2305,6 +2306,12 @@ let SPAWN_MEMO = { arr: null, n: -1, set: new Set() };
 function spawnedIds() { const a = D().tasks; if (SPAWN_MEMO.arr !== a || SPAWN_MEMO.n !== a.length) SPAWN_MEMO = { arr: a, n: a.length, set: new Set(a.map(t => t.nextId).filter(Boolean)) }; return SPAWN_MEMO.set; }
 function repeatLead(t) { return REPEAT_LEAD[t.repeat] !== undefined ? REPEAT_LEAD[t.repeat] : 5; }
 const notYet = t => !!(t.repeat && t.due && !isDone(t) && dayDiff(t.due) > repeatLead(t) && spawnedIds().has(t.id));
+/* Subtasks shown under a task: all open ones plus the 3 most recently completed (the rest behind "Show more"). */
+function subsView(pid, subs) {
+  const done = subs.filter(isDone).sort((a, b) => (b.completedAt || b.updatedAt || '') > (a.completedAt || a.updatedAt || '') ? 1 : -1);
+  const all = !!S.doneMore[pid], keep = new Set((all ? done : done.slice(0, 3)).map(s => s.id));
+  return { list: subs.filter(s => !isDone(s) || keep.has(s.id)), extra: Math.max(0, done.length - 3), all };
+}
 const topTasks = pid => D().tasks.filter(t => t.projectId === pid && !t.parentId && !notYet(t));
 const subtasks = id => D().tasks.filter(t => t.parentId === id && !notYet(t)).sort((a, b) => a.order - b.order);
 const isDone = t => taskDoneIn(t, stagesForTask(t));
@@ -2990,8 +2997,8 @@ function taskRow(t, opt = {}) {
   const pending = opt.pend && opt.pend.has(t.id);
   const open = opt.expand && subs.length && accOpen('sub', t.id, '');
   const twist = opt.expand ? (subs.length ? `<button class="twist ${open ? 'open' : ''}" data-act="acc" data-g="sub" data-k="${t.id}" aria-label="Show or hide subtasks" aria-expanded="${open ? 'true' : 'false'}">${ic('chevR', 's')}</button>` : '<span class="twist"></span>') : '';
-  const shownSubs = S.showDoneSubs ? subs : subs.filter(s => !isDone(s));
-  const nested = opt.expand && subs.length ? accPanel('sub', t.id, open, shownSubs.map(s => taskRow(s, { pend: opt.pend, nested: true, cells: opt.cells, rc: opt.rc || (opt.showProject && !opt.cells) })).join('') + (sd && !S.showDoneSubs ? `<button class="trow nested more-done" data-act="toggleDoneSubs">${ic('done', 's')}Show ${sd} completed</button>` : '')) : '';
+  const sv = subsView(t.id, subs);
+  const nested = opt.expand && subs.length ? accPanel('sub', t.id, open, sv.list.map(s => taskRow(s, { pend: opt.pend, nested: true, cells: opt.cells, rc: opt.rc || (opt.showProject && !opt.cells) })).join('') + (sv.extra ? `<button class="trow nested more-done" data-act="moreDone" data-pid="${t.id}">${ic(sv.all ? 'chevD' : 'done', 's')}${sv.all ? 'Show fewer completed' : 'Show ' + sv.extra + ' more completed'}</button>` : '')) : '';
   const rc = opt.rc || (opt.showProject && !opt.cells), st = stageOf(t);
   return `<div class="trow ${done ? 'done' : ''} ${S.taskId === t.id ? 'sel' : ''} ${opt.nested ? 'nested' : ''} ${opt.expand ? 'has-twist' : ''} ${rc ? 'rc' : ''}" data-act="openTask" data-id="${t.id}"${opt.nested && opt.cells && FINE ? ` draggable="true" data-dragsub="${t.id}" title="Drag onto a stage to make it a main task"` : ''}${!opt.nested && opt.cells ? ` data-lrow="${t.id}"` : ''} role="button" tabindex="0">
     ${twist}<button class="check ${done ? 'on' : ''}" data-act="toggleDone" data-id="${t.id}" aria-label="${done ? 'Mark as not done' : 'Mark complete'}" aria-pressed="${done}">${ic('check')}</button>
@@ -3464,9 +3471,9 @@ function inspectorHtml(t) {
         ${parent ? '' : `<button class="li" data-act="moveMenu" data-id="${t.id}"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><span class="val"><span>${p ? esc(p.name) : 'None'}</span></span><span class="chev">${ic('updown', 's')}</span></button>`}
       </div>
       ${t.notes ? `<div class="section-title">Notes</div><div class="menu"><div class="li old-notes">${esc(t.notes)}</div></div>` : ''}
-      <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span><span class="sp"></span><button class="link" data-act="editSubStages" data-id="${t.id}">Stages</button>${subs.some(isDone) ? `<button class="link" data-act="toggleDoneSubs">${S.showDoneSubs ? 'Hide completed' : 'Show completed (' + subs.filter(isDone).length + ')'}</button>` : ''}</div>
-      <div class="menu">${subs.filter(s => S.showDoneSubs || !isDone(s)).map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
-        <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${pend.has(s.id) ? '<span class="pending-dot"></span>' : ''}${dueHtml(s) ? `<span style="font-size:13px" class="sub">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('')}
+      <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span><span class="sp"></span><button class="link" data-act="editSubStages" data-id="${t.id}">Stages</button></div>
+      <div class="menu">${(sv => sv.list.map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
+        <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${pend.has(s.id) ? '<span class="pending-dot"></span>' : ''}${dueHtml(s) ? `<span style="font-size:13px" class="sub">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('') + (sv.extra ? `<button class="sub-more" data-act="moreDone" data-pid="${t.id}">${sv.all ? 'Show fewer completed' : 'Show ' + sv.extra + ' more completed'}</button>` : ''))(subsView(t.id, subs))}
         <div class="addrow">${ic('plus')}<input id="addsub" placeholder="Add subtask" data-enter="addSub" data-id="${t.id}" aria-label="Add subtask"></div></div>
       <div class="section-title">Files<span class="sp"></span>
         <label class="link" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">${ic('upload', 's')} Upload<input type="file" hidden data-change="upload" data-id="${t.id}" multiple></label></div>
@@ -3754,6 +3761,7 @@ const ACT = {
   editStages() { stagesDialog(projById(S.projectId)); },
   wlPeriod(el) { S.wlPeriod = el.dataset.p; render(); },
   sbToggle(el) { const k = el.dataset.k; SBC[k] = !SBC[k]; store.set('orbit_sbc', SBC); render({ soft: true }); },
+  moreDone(el) { S.doneMore[el.dataset.pid] = !S.doneMore[el.dataset.pid]; render({ soft: true }); },
   toggleDoneSubs() { S.showDoneSubs = !S.showDoneSubs; render({ soft: true }); },
   editC(el) { S.editingC = el.dataset.id; renderInsp(); setTimeout(() => { const b = $('#cedit'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 30); },
   cancelEditC() { S.editingC = null; renderInsp(); },
