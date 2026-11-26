@@ -1038,6 +1038,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .ho-list{max-height:260px;overflow:auto}
 .ho-pick{cursor:pointer}.ho-pick input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
 .ho-pick .pdot{display:inline-block;vertical-align:middle;margin-right:2px}
+.old-notes{white-space:pre-wrap;line-height:1.5;padding-top:12px;padding-bottom:12px;color:var(--text-2);font-size:15px}
 
 </style>
 </head>
@@ -1962,7 +1963,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795679200';
+const ORBIT_BUILD = '1795683832';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -3462,8 +3463,7 @@ function inspectorHtml(t) {
         <button class="li" data-act="prioMenu" data-id="${t.id}"><span class="ico" style="background:var(--yellow)">${ic('flag')}</span><span class="lbl">Priority</span><span class="val" style="color:${cvar(PRIO[t.priority || 'none'].c)}"><span>${PRIO[t.priority || 'none'].l}</span></span></button>
         ${parent ? '' : `<button class="li" data-act="moveMenu" data-id="${t.id}"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><span class="val"><span>${p ? esc(p.name) : 'None'}</span></span><span class="chev">${ic('updown', 's')}</span></button>`}
       </div>
-      <div class="section-title">Notes</div>
-      <textarea class="notes" id="notes" placeholder="Add details, links or instructions" data-change="saveNotes" data-id="${t.id}" aria-label="Notes">${esc(t.notes || '')}</textarea>
+      ${t.notes ? `<div class="section-title">Notes</div><div class="menu"><div class="li old-notes">${esc(t.notes)}</div></div>` : ''}
       <div class="section-title">Subtasks <span class="n tnum">${subs.filter(isDone).length}/${subs.length}</span><span class="sp"></span><button class="link" data-act="editSubStages" data-id="${t.id}">Stages</button>${subs.some(isDone) ? `<button class="link" data-act="toggleDoneSubs">${S.showDoneSubs ? 'Hide completed' : 'Show completed (' + subs.filter(isDone).length + ')'}</button>` : ''}</div>
       <div class="menu">${subs.filter(s => S.showDoneSubs || !isDone(s)).map(s => `<div class="sub-row ${isDone(s) ? 'done' : ''}"><button class="check ${isDone(s) ? 'on' : ''}" data-act="toggleDone" data-id="${s.id}" aria-label="Toggle subtask">${ic('check')}</button>
         <span class="t" data-act="openTask" data-id="${s.id}">${esc(s.title)}</span>${pend.has(s.id) ? '<span class="pending-dot"></span>' : ''}${dueHtml(s) ? `<span style="font-size:13px" class="sub">${dueHtml(s)}</span>` : ''}${avs(s.assignees, 2)}</div>`).join('')}
@@ -4031,8 +4031,7 @@ const ACT = {
     const pid = S.view === 'project' ? S.projectId : '';
     const projs = projects();
     openDialog({ title: 'New Task', ok: 'Add', body: `<div style="display:flex;flex-direction:column;gap:10px">
-      <input class="input" id="nt-title" placeholder="Task title" autofocus aria-label="Task title">
-      <textarea class="input" id="nt-notes" placeholder="Notes (optional)" style="min-height:76px" aria-label="Notes"></textarea></div>
+      <input class="input" id="nt-title" placeholder="Task title" autofocus aria-label="Task title"></div>
       <div class="menu" style="margin-top:16px">
         <div class="li"><span class="ico" style="background:var(--indigo)">${ic('folder')}</span><span class="lbl">Project</span><select class="sel" id="nt-proj" aria-label="Project"><option value="">No Project</option>${projs.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
         <div class="li"><span class="ico" style="background:var(--orange)">${ic('person')}</span><span class="lbl">Assign to</span><select class="sel" id="nt-who" aria-label="Assign to"></select></div>
@@ -4053,7 +4052,7 @@ const ACT = {
         const who = $('#nt-who', root).value, p = projById($('#nt-proj', root).value);
         const rep = readRepeat(root, 'nt');
         const id = uidC('t');
-        op({ action: 'saveTask', task: { id, title, notes: $('#nt-notes', root).value, projectId: p ? p.id : '', teamId: p ? p.teamId : scopeTeamId(),
+        op({ action: 'saveTask', task: { id, title, notes: '', projectId: p ? p.id : '', teamId: p ? p.teamId : scopeTeamId(),
           assignees: who ? [who] : [], due: $('#nt-due', root).value || (rep.repeat ? firstDue(rep.repeat, todayStr(), rep.on) : ''), priority: $('#nt-prio', root).value, repeat: rep.repeat, repeatOn: rep.on, order: Date.now() } });
         S.taskId = id; render(); toast('Task added');
       } });
