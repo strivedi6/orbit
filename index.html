@@ -1029,6 +1029,15 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .sec-h.sub-drop{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .menu.sub-drop{box-shadow:0 0 0 2px var(--accent)}
 .trow.sub-drop{box-shadow:inset 0 -2px 0 var(--accent)}
+/* handovers */
+.ho-avs{display:flex;flex:none;width:46px}.ho-avs .av+.av{margin-left:-10px;box-shadow:0 0 0 2px var(--surface)}
+.ho-row .chip{flex:none;margin-left:8px}
+.ho-head{margin:0 4px 6px}.ho-people{display:flex;align-items:center;gap:10px;margin-top:6px}.ho-arrow{color:var(--text-3)}
+.ho-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+.ho-notes{white-space:pre-wrap;line-height:1.5;padding-top:14px;padding-bottom:14px}
+.ho-list{max-height:260px;overflow:auto}
+.ho-pick{cursor:pointer}.ho-pick input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
+.ho-pick .pdot{display:inline-block;vertical-align:middle;margin-right:2px}
 
 </style>
 </head>
@@ -1054,9 +1063,10 @@ var TABLES = {
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId','repeatOn','subStages'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt'],
-  settings:   ['id','value','updatedAt']
+  settings:   ['id','value','updatedAt'],
+  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt']
 };
-var JSON_COLS = { palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
+var JSON_COLS = { projects: 1, tasks: 1, palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -1209,6 +1219,7 @@ function listOf(v) { return Array.isArray(v) ? v : []; }
 function isProjectManager(u, p) { return p.createdBy === u.id || listOf(p.managers).indexOf(u.id) >= 0; }
 function canSeeProject(u, p) {
   if (isAdmin(u) || isProjectManager(u, p)) return true;
+  if (HO[u.id] && HO[u.id].p[p.id]) return true;
   if (p.access === 'private') return listOf(p.members).indexOf(u.id) >= 0;
   var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; });
 }
@@ -1220,8 +1231,17 @@ function projectPeople(DB, p) {
     .map(function (x) { return x.id; }).concat(listOf(p.managers));
 }
 function canSeeTask(DB, u, t) {
+  if (HO[u.id] && (HO[u.id].t[t.id] || (t.parentId && HO[u.id].t[t.parentId]) || (t.projectId && HO[u.id].p[t.projectId]))) return true;
   var p = t.projectId ? DB.get('projects', t.projectId) : null;
   return p ? canSeeProject(u, p) : canSeeTeam(u, t.teamId);
+}
+/* Handovers: while one is active, the person covering can see and work on the projects and tasks in it. */
+var HO = {};
+function hoActive(h) { if (h.status === 'closed') return false; if (!h.endDate) return true; var end = new Date(h.endDate + 'T00:00:00Z').getTime() + 3 * 86400000; return Date.now() <= end; }
+function loadHandoverAccess(DB) {
+  HO = {};
+  try { DB.all('handovers').forEach(function (h) { if (!h.toId || !hoActive(h)) return; var a = HO[h.toId] = HO[h.toId] || { p: {}, t: {} };
+    listOf(h.projects).forEach(function (id) { a.p[id] = 1; }); listOf(h.tasks).forEach(function (id) { a.t[id] = 1; }); }); } catch (e) { HO = {}; }
 }
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
@@ -1333,10 +1353,12 @@ var ACTIONS = {
     var pIds = {}, tset = {};
     mine.forEach(function (t) { tset[t] = 1; });
     projects.forEach(function (p) { pIds[p.id] = 1; projTeams(p).forEach(function (t) { tset[t] = 1; }); });
-    var tasks = DB.all('tasks').filter(function (t) { return admin || (t.projectId ? pIds[t.projectId] : mine.indexOf(t.teamId) >= 0); });
+    var ho = HO[u.id] || { p: {}, t: {} };
+    var tasks = DB.all('tasks').filter(function (t) { return admin || ho.t[t.id] || (t.parentId && ho.t[t.parentId]) || (t.projectId ? pIds[t.projectId] : mine.indexOf(t.teamId) >= 0); });
     var tIds = {}; tasks.forEach(function (t) { tIds[t.id] = 1; });
+    var hoPeople = {}; DB.all('handovers').forEach(function (h) { if (h.fromId === u.id) hoPeople[h.toId] = 1; if (h.toId === u.id) hoPeople[h.fromId] = 1; });
     var users = DB.all('users').filter(function (x) {
-      if (admin) return true;
+      if (admin || hoPeople[x.id]) return true;
       var xt = userTeams(x);
       if (!xt.some(function (t) { return tset[t]; })) return false;
       if (x.status === 'active') return true;
@@ -1351,6 +1373,7 @@ var ACTIONS = {
       teams: DB.all('teams'), users: users,
       projects: projects, tasks: tasks,
       comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
+      handovers: DB.all('handovers').filter(function (h) { return admin || h.fromId === u.id || h.toId === u.id || (u.role === 'head' && mine.indexOf(h.teamId) >= 0); }),
       activity: activity,
       admin: admin ? adminInfo(DB) : null,
       app: appSettings(DB),
@@ -1516,6 +1539,41 @@ var ACTIONS = {
     if ((obj.assignees || []).length) log(DB, u, teamId, 'assign', obj.id, 'assigned “' + obj.title + '”', obj.assignees);
     else if (!parent) log(DB, u, teamId, 'task', obj.id, 'added “' + obj.title + '”', []);
     return obj;
+  },
+
+  /* ---------- handovers (someone leaving or going on leave) ---------- */
+  saveHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = r.handover || {}, existing = h.id ? DB.get('handovers', h.id) : null;
+    if (existing && existing.fromId !== u.id && !isAdmin(u)) fail('Only the person who wrote this handover can change it.');
+    var to = DB.get('users', str(h.toId));
+    if (!to || to.status !== 'active') fail('Choose who is covering.');
+    if (to.id === (existing ? existing.fromId : u.id)) fail('Choose someone else to cover.');
+    var projects = listOf(h.projects).filter(function (id, i, a) { var p = DB.get('projects', id); return a.indexOf(id) === i && p && canSeeProject(u, p); });
+    var tasks = listOf(h.tasks).filter(function (id, i, a) { var t = DB.get('tasks', id); return a.indexOf(id) === i && t && canSeeTask(DB, u, t); });
+    if (!projects.length && !tasks.length) fail('Pick at least one project or task to hand over.');
+    var f = { toId: to.id, title: str(h.title, 120) || 'Handover', startDate: str(h.startDate, 10), endDate: str(h.endDate, 10), notes: str(h.notes, 5000),
+      projects: projects, tasks: tasks, status: h.status === 'closed' ? 'closed' : 'active', updatedAt: nowISO() };
+    if (existing) { if (existing.toId !== f.toId) f.ackAt = ''; DB.update('handovers', existing.id, f); return DB.get('handovers', existing.id); }
+    var obj = Object.assign({ id: cleanId(h.id, 'o'), teamId: u.teamId, fromId: u.id, ackAt: '', createdAt: nowISO() }, f);
+    DB.insert('handovers', obj);
+    log(DB, u, u.teamId, 'handover', obj.id, 'handed over ' + projects.length + (projects.length === 1 ? ' project' : ' projects') + ' and ' + tasks.length + (tasks.length === 1 ? ' task' : ' tasks') + ' to ' + to.name, [to.id]);
+    return obj;
+  },
+  ackHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = DB.get('handovers', str(r.id));
+    if (!h || (h.toId !== u.id && h.fromId !== u.id && !isAdmin(u))) fail('That handover no longer exists.');
+    var f = { updatedAt: nowISO() };
+    if (r.close) f.status = 'closed'; else if (h.toId === u.id) f.ackAt = nowISO();
+    DB.update('handovers', h.id, f);
+    if (r.close) log(DB, u, h.teamId, 'handover', h.id, 'closed the handover ' + h.title, [h.toId === u.id ? h.fromId : h.toId]);
+    else log(DB, u, h.teamId, 'handover', h.id, 'took over ' + h.title, [h.fromId]);
+    return DB.get('handovers', h.id);
+  },
+  deleteHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = DB.get('handovers', str(r.id));
+    if (!h) return { ok: true };
+    if (h.fromId !== u.id && !isAdmin(u)) fail('Only the person who wrote this handover can delete it.');
+    DB.remove('handovers', h.id); return { ok: true };
   },
 
   deleteTask: function (DB, r) {
@@ -1879,6 +1937,7 @@ function coreHandle(DB, req) {
   try {
     var fn = ACTIONS[req && req.action];
     if (!fn) fail('Unknown request.');
+    loadHandoverAccess(DB);
     return { ok: true, data: fn(DB, req) };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
@@ -1903,7 +1962,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795547140';
+const ORBIT_BUILD = '1795675790';
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
 if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) document.documentElement.classList.add('ios');
 const DEFAULT_ICON = 'data:image/png;base64,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';
@@ -1960,6 +2019,7 @@ const uidC = p => p + Date.now().toString(36) + Math.random().toString(36).slice
 
 /* ---------------- icons (SF Symbols–style strokes) ---------------- */
 const IC = {
+  handover: 'M4 7h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2 M3 13h18 M11 13v2h2v-2',
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
   mytasks: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12.5l2.5 2.5L16 9.5',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
@@ -2647,7 +2707,8 @@ function sidebarHtml() {
       ${nav('mytasks', 'mytasks', 'My Tasks', `<span class="n tnum">${myTasks().filter(t => !isDone(t)).length || ''}</span>`)}
       ${nav('activity', 'bell', 'Activity')}
       ${nav('team', 'people', 'Team', pend ? `<span class="badge">${pend}</span>` : '')}
-      ${nav('workload', 'chart', 'Workload')}`}
+      ${nav('workload', 'chart', 'Workload')}
+      ${nav('handovers', 'handover', 'Handovers', hoWaiting().length ? `<span class="badge">${hoWaiting().length}</span>` : '')}`}
     </div>
     <div class="sb-sec"><button class="sb-tog ${SBC._open ? '' : 'closed'}" data-act="sbToggle" data-k="_open" aria-expanded="${!!SBC._open}">${ic('chevD', 'xs')}<span>Projects</span>${SBC._open ? '' : `<span class="n">${projects().length}</span>`}</button><button class="circle sm" style="width:26px;height:26px" data-act="newProject" aria-label="New project">${ic('plus', 's')}</button></div>
     <div class="sb-nav" ${SBC._open ? '' : 'hidden'}>
@@ -2702,11 +2763,11 @@ function renderTabs() {
 }
 
 /* ---------------- navbar ---------------- */
-const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', people: 'People', org: 'Properties & Teams', workload: 'Workload', settings: 'Settings', activity: 'Activity', search: 'Search' };
+const TITLES = { home: 'Home', mytasks: 'My Tasks', projects: 'Projects', team: 'Team', people: 'People', org: 'Properties & Teams', workload: 'Workload', handovers: 'Handovers', handover: 'Handover', settings: 'Settings', activity: 'Activity', search: 'Search' };
 function navbarHtml() {
   const p = S.view === 'project' ? projById(S.projectId) : null;
   const title = p ? esc(p.name) : TITLES[S.view] || '';
-  const back = p || S.view === 'settings' || S.view === 'activity' || S.view === 'search';
+  const back = p || S.view === 'settings' || S.view === 'activity' || S.view === 'search' || S.view === 'handovers' || S.view === 'handover';
   const newAct = S.view === 'projects' ? 'newProject' : 'newTask';
   return `<div class="navbar" id="nav">
     ${back ? `<button class="circle glass mob-only" data-act="back" aria-label="Back">${ic('chevL')}</button>` : `<button class="circle glass mob-only" data-act="go" data-v="settings" aria-label="Settings">${av(me(), '')}</button>`}
@@ -2733,6 +2794,8 @@ function viewHtml() {
     case 'project': return projectHtml();
     case 'team': return teamHtml();
     case 'workload': return workloadHtml();
+    case 'handovers': return handoversHtml();
+    case 'handover': return handoverHtml();
     case 'settings': return settingsHtml();
     case 'activity': return activityHtml();
     case 'search': return searchHtml();
@@ -2866,6 +2929,7 @@ function homeHtml() {
   // open tasks in this team that don't belong to any project
   const loose = D().tasks.filter(t => !t.projectId && !t.parentId && !isDone(t) && !notYet(t) && taskInScope(t))
     .sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : (a.due || '9999') > (b.due || '9999') ? 1 : (PRIOR(b) - PRIOR(a)));
+  const hos = (D().handovers || []).filter(h => hoIsActive(h) && (h.toId === me().id || h.fromId === me().id));
   return `<div class="hello"><div class="eyebrow">${greet}</div><h1 class="large-title">${esc(firstName(m.name))}</h1>
     <p class="lt-sub home-sub">${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${esc(multiScope() ? (S.scope === 'all' ? (isAdminU() ? 'All teams' : myTeamIds().map(id => teamLabel(teamById(id))).join(', ')) : teamLabel(teamById(S.scope))) : teamLabel(teamById(m.teamId)))}</p></div>
     <div class="home-desk">${prop.name ? `<div class="prop-badge">${plogo(prop)}${esc(prop.name)}</div>` : ''} ${scopePill()}</div>
@@ -2875,6 +2939,7 @@ function homeHtml() {
       <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="d">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
     <div class="section-title">Projects <span class="n tnum">${projs.length}</span><span class="sp"></span><button class="link mob-only" data-act="newProject">New Project</button></div>
     ${projs.length ? `<div class="pgrid">${projs.map(projectCard).join('')}</div>` : `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Create the first project for your team.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`}
+    ${hos.length ? `<div class="section-title">Handovers <span class="n tnum">${hos.length}</span><button class="link" data-act="go" data-v="handovers" style="margin-left:auto">See all</button></div><div class="menu">${hos.map(hoRow).join('')}</div>` : ''}
     ${loose.length ? `<div class="tw-out"><div class="section-title">Tasks <span class="n tnum">${loose.length}</span></div><div class="menu">${loose.map(t => taskRow(t, { rc: true, showStatus: true, pend: Outbox.pendingIds(), expand: true })).join('')}</div></div>` : ''}
 `;
 }
@@ -3266,6 +3331,57 @@ function settingsHtml() {
       ${API.live ? `<button class="li" data-act="refresh"><span class="ico" style="background:var(--teal)">${ic('up')}</span><span class="lbl">Refresh Now</span></button>` : `<button class="li" data-act="resetDemo"><span class="ico" style="background:var(--gray)">${ic('archive')}</span><span class="lbl">Reset Demo Data</span></button>`}</div>
     <div class="menu" style="margin-top:28px"><button class="li" data-act="signOut" style="justify-content:center;color:var(--red);font-weight:600">Sign Out</button></div>
     <p class="section-foot" style="text-align:center;margin-top:14px">${(S.data.app || {}).sessionHours ? `${CONFIG.APP_NAME} signs you out every ${esc(sessionLabel(S.data.app.sessionHours))}, so you always have the newest version.` : `${CONFIG.APP_NAME} stays signed in on this device until you sign out.`}</p>`;
+}
+
+
+/* ---------------- handovers: someone leaving or going on leave hands their work to a colleague ---------------- */
+const hoIsActive = h => h.status !== 'closed' && (!h.endDate || dayDiff(h.endDate) >= -3);
+const hoWaiting = () => (D().handovers || []).filter(h => h.toId === me().id && hoIsActive(h) && !h.ackAt);
+function hoDates(h) { return h.startDate && h.endDate ? fmtDay(h.startDate) + ' – ' + fmtDay(h.endDate) : h.startDate ? 'From ' + fmtDay(h.startDate) : h.endDate ? 'Until ' + fmtDay(h.endDate) : ''; }
+function hoStatus(h) {
+  if (!hoIsActive(h)) return '<span class="chip role-member">Closed</span>';
+  if (h.toId === me().id && !h.ackAt) return '<span class="chip" style="background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)">New for you</span>';
+  return h.ackAt ? '<span class="chip" style="background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)">Covering</span>' : '<span class="chip role-member">Waiting for them</span>';
+}
+function hoRow(h) {
+  const from = userById(h.fromId), to = userById(h.toId), n = (h.projects || []).length, k = (h.tasks || []).length;
+  return `<button class="li ho-row" data-act="openHandover" data-id="${h.id}" style="--inset:62px"><span class="ho-avs">${av(from, 'sm')}${av(to, 'sm')}</span>
+    <span class="lbl">${esc(h.title)}<div class="sub">${esc((from || {}).name || '')} → ${esc((to || {}).name || '')}${hoDates(h) ? ' · ' + esc(hoDates(h)) : ''} · ${[n ? n + (n === 1 ? ' project' : ' projects') : '', k ? k + (k === 1 ? ' task' : ' tasks') : ''].filter(Boolean).join(', ')}</div></span>${hoStatus(h)}<span class="chev faint">${ic('chevR', 's')}</span></button>`;
+}
+function handoversHtml() {
+  const all = (D().handovers || []).slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)), m = me().id;
+  const forMe = all.filter(h => h.toId === m && hoIsActive(h)), mine = all.filter(h => h.fromId === m && hoIsActive(h));
+  const team = all.filter(h => h.toId !== m && h.fromId !== m && hoIsActive(h)), closed = all.filter(h => !hoIsActive(h));
+  const sec = (t, list) => list.length ? `<div class="section-title">${t} <span class="n tnum">${list.length}</span></div><div class="menu">${list.map(hoRow).join('')}</div>` : '';
+  return `<div class="ctl-row" style="align-items:flex-end"><div style="flex:1;min-width:0"><h1 class="large-title">Handovers</h1>
+    <p class="faint" style="margin:2px 4px 14px">Going on leave or moving on? Pick the projects and tasks a colleague should look after, add notes, and they’ll see everything in one place.</p></div>
+    <button class="btn primary sm" data-act="newHandover">${ic('plus', 's')}<span>New Handover</span></button></div>
+    ${sec('For you', forMe)}${sec('From you', mine)}${sec('Your team', team)}${sec('Closed', closed)}
+    ${all.length ? '' : `<div class="menu">${emptyState('handover', 'indigo', 'No handovers yet', 'Before your leave, create a handover so whoever covers knows exactly what to look after.', `<button class="btn primary sm" data-act="newHandover">${ic('plus', 's')}<span>New Handover</span></button>`)}</div>`}`;
+}
+function handoverHtml() {
+  const h = (D().handovers || []).find(x => x.id === S.hoId);
+  if (!h) return `<div class="menu">${emptyState('handover', 'gray', 'Handover not found', 'It may have been deleted.')}</div>`;
+  const from = userById(h.fromId), to = userById(h.toId), m = me().id, owner = h.fromId === m || isAdminU(), active = hoIsActive(h);
+  const pend = Outbox.pendingIds();
+  const projs = (h.projects || []).map(projById).filter(Boolean), tasks = (h.tasks || []).map(taskById).filter(Boolean);
+  const projBlock = p => { const open = topTasks(p.id).filter(t => !isDone(t)).sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1), pr = progress(p.id);
+    return `<div class="section-title">${pdot(p)} ${esc(p.name)} <span class="n tnum">${open.length} open · ${pr.pct}% done</span><button class="link" data-act="openProject" data-id="${p.id}" style="margin-left:auto">Open project</button></div>
+      <div class="tw-out"><div class="menu">${open.length ? open.map(t => taskRow(t, { rc: true, showStatus: true, pend, expand: true })).join('') : `<div class="li"><span class="lbl faint">Nothing open in this project.</span></div>`}</div></div>`; };
+  return `<div class="ho-head">
+    <div class="ho-people">${av(from, 'lg')}<span class="ho-arrow">${ic('chevR', 's')}</span>${av(to, 'lg')}</div>
+    <h1 class="large-title" style="margin:10px 0 2px">${esc(h.title)}</h1>
+    <div class="faint" style="margin:0 4px">${esc((from || {}).name || '')} handed over to <b style="color:var(--text)">${esc((to || {}).name || '')}</b>${hoDates(h) ? ' · ' + esc(hoDates(h)) : ''}</div>
+    <div class="ho-acts">${hoStatus(h)}
+      ${active && h.toId === m && !h.ackAt ? `<button class="btn primary sm" data-act="ackHandover" data-id="${h.id}">${ic('check', 's')}<span>Got it, I’m covering</span></button>` : ''}
+      <button class="btn sm" data-act="exportHandover" data-id="${h.id}">${ic('printer', 's')}<span>Export PDF</span></button>
+      ${owner ? `<button class="btn sm" data-act="editHandover" data-id="${h.id}">${ic('pencil', 's')}<span>Edit</span></button>` : ''}
+      ${active && (owner || h.toId === m) ? `<button class="btn sm" data-act="closeHandover" data-id="${h.id}">${ic('done', 's')}<span>${h.fromId === m ? 'I’m Back' : 'Close'}</span></button>` : ''}
+      ${owner ? `<button class="circle sm" data-act="deleteHandover" data-id="${h.id}" aria-label="Delete handover">${ic('trash', 's')}</button>` : ''}</div></div>
+    ${h.notes ? `<div class="section-title">Notes</div><div class="menu"><div class="li ho-notes">${esc(h.notes)}</div></div>` : ''}
+    ${projs.map(projBlock).join('')}
+    ${tasks.length ? `<div class="section-title">Tasks <span class="n tnum">${tasks.length}</span></div><div class="tw-out"><div class="menu">${tasks.map(t => taskRow(t, { rc: true, showProject: true, showStatus: true, pend, expand: true })).join('')}</div></div>` : ''}
+    ${!projs.length && !tasks.length ? `<div class="menu">${emptyState('handover', 'gray', 'Nothing to show', 'The projects and tasks in this handover are no longer available.')}</div>` : ''}`;
 }
 
 
@@ -3728,8 +3844,18 @@ const ACT = {
     else openMenu(el, [['all', 'Any Status'], ['active', 'Active'], ['pending', 'Waiting for Approval'], ['locked', 'Locked Out'], ['off', 'Turned Off']].map(([v, l]) => ({ label: l, checked: (S.ppStatus || 'all') === v, onClick: set(v) })));
   },
   fabMenu(el) {
-    openMenu(el, [{ label: 'New Task', icon: ic('mytasks', 's'), onClick: () => ACT.newTask(el) }, { label: 'New Project', icon: ic('folder', 's'), onClick: () => ACT.newProject(el) }]);
+    openMenu(el, [{ label: 'New Task', icon: ic('mytasks', 's'), onClick: () => ACT.newTask(el) }, { label: 'New Project', icon: ic('folder', 's'), onClick: () => ACT.newProject(el) }, { label: 'New Handover', icon: ic('handover', 's'), onClick: () => handoverDialog(null) }]);
   },
+  openHandover(el) { nav(() => { S.view = 'handover'; S.hoId = el.dataset.id; }, 'push'); },
+  newHandover() { handoverDialog(null); },
+  editHandover(el) { handoverDialog((D().handovers || []).find(h => h.id === el.dataset.id)); },
+  async ackHandover(el) { try { await run('ackHandover', { id: el.dataset.id }, 'You’re covering — the sender has been told'); await sync({ force: true }); render({ soft: true }); } catch (e) { } },
+  async closeHandover(el) { const h = (D().handovers || []).find(x => x.id === el.dataset.id); if (!h) return;
+    if (!await confirmBox({ title: h.fromId === me().id ? 'Welcome back! Close this handover?' : 'Close this handover?', msg: 'The projects and tasks stay as they are. Anyone who only had access through this handover will no longer see them.', ok: 'Close Handover' })) return;
+    try { await run('ackHandover', { id: h.id, close: true }, 'Handover closed'); await sync({ force: true }); render({ soft: true }); } catch (e) { } },
+  async deleteHandover(el) { if (!await confirmBox({ title: 'Delete this handover?', msg: 'The notes and the list are removed. Projects and tasks are not changed.', ok: 'Delete', danger: true })) return;
+    try { await run('deleteHandover', { id: el.dataset.id }, 'Handover deleted'); await sync({ force: true }); nav(() => { S.view = 'handovers'; }, 'pop'); } catch (e) { } },
+  exportHandover(el) { const h = (D().handovers || []).find(x => x.id === el.dataset.id); if (h) deliverDoc(handoverDocHtml(h), (h.title.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Handover') + ' - Orbit', 'pdf'); },
   viewMenu(el) {
     const M = [['list', 'list', 'List'], ['board', 'board', 'Board'], ['calendar', 'cal', 'Calendar']];
     openMenu(el, M.map(([k, i, l]) => ({ label: l, icon: ic(i, 's'), checked: S.mode === k, onClick: () => ACT.mode({ dataset: { m: k } }) })));
@@ -3931,6 +4057,7 @@ const ACT = {
   openActivity(el) {
     const a = D().activity.find(x => x.id === el.dataset.id); if (!a) return;
     if (a.type === 'signup') return nav(() => { S.view = 'team'; S.teamTab = 'requests'; });
+    if (a.type === 'handover' && (D().handovers || []).some(h => h.id === a.refId)) return nav(() => { S.view = 'handover'; S.hoId = a.refId; }, 'push');
     if (a.type === 'project' && projById(a.refId)) return nav(() => { S.view = 'project'; S.projectId = a.refId; }, 'push');
     if (taskById(a.refId)) { S.taskId = a.refId; render(); return; }
     toast('That item no longer exists.', true);
@@ -4047,6 +4174,69 @@ function templateDialog(p) {
       const r = await run('duplicateProject', { projectId: p.id, name, teamId: $('#tp-team', root) ? $('#tp-team', root).value : home, start: $('#tp-start', root).value }, 'Project created');
       await sync({ force: true }); nav(() => { S.view = 'project'; S.projectId = r.project.id; }, 'push');
     } });
+}
+/* Handover: pick who covers, the dates, notes, and which projects and tasks they look after. */
+function handoverDialog(h) {
+  const isNew = !h, m = me(); h = h || { title: 'Leave handover', projects: [], tasks: [], notes: '', startDate: todayStr(), endDate: '' };
+  const myTeams = myTeamIds(), people = D().users.filter(u => u.id !== (h.fromId || m.id) && u.status === 'active' && u.role !== 'admin' && userTeamsC(u).some(t => myTeams.includes(t))).sort((a, b) => a.name.localeCompare(b.name));
+  if (!people.length && !h.toId) { toast('There’s no one else in your team to hand over to yet.', true); return; }
+  const projs = projects().filter(p => !p.archived).sort((a, b) => a.name.localeCompare(b.name));
+  const taskPool = D().tasks.filter(t => !t.parentId && !isDone(t) && !notYet(t) && ((t.assignees || []).includes(h.fromId || m.id) || (h.tasks || []).includes(t.id)))
+    .sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1);
+  const pick = (kind, id, on, label, sub) => `<label class="li ho-pick" data-${kind}="${id}"><input type="checkbox" ${on ? 'checked' : ''} value="${id}"><span class="lbl">${label}${sub ? `<div class="sub">${sub}</div>` : ''}</span></label>`;
+  openDialog({ title: isNew ? 'New Handover' : 'Edit Handover', ok: isNew ? 'Hand Over' : 'Save', body: `
+    <input class="input" id="ho-title" placeholder="Title, e.g. Annual leave 12–26 Dec" value="${esc(h.title)}">
+    <div class="menu" style="margin-top:12px">
+      <div class="li"><span class="ico" style="background:var(--indigo)">${ic('person')}</span><span class="lbl">Covering</span><select class="sel" id="ho-to" aria-label="Who is covering">${isNew ? '<option value="">Choose…</option>' : ''}${people.map(u => `<option value="${u.id}" ${u.id === h.toId ? 'selected' : ''}>${esc(u.name)}${u.jobTitle ? ' · ' + esc(u.jobTitle) : ''}</option>`).join('')}</select></div>
+      <div class="li"><span class="ico" style="background:var(--red)">${ic('cal')}</span><span class="lbl">Away from</span><input type="date" class="date" id="ho-start" value="${esc(h.startDate || '')}" aria-label="Away from"></div>
+      <div class="li"><span class="ico" style="background:var(--green)">${ic('cal')}</span><span class="lbl">Back on<div class="sub">Leave empty if you’re leaving for good</div></span><input type="date" class="date" id="ho-end" value="${esc(h.endDate || '')}" aria-label="Back on"></div></div>
+    <textarea class="input" id="ho-notes" placeholder="Notes for whoever covers: priorities, contacts, passwords live in…, what can wait until you’re back" style="min-height:96px;margin-top:12px">${esc(h.notes || '')}</textarea>
+    <div class="section-title">Projects <span class="n" id="ho-pn"></span></div>
+    <div class="menu ho-list">${projs.length ? projs.map(p => pick('p', p.id, (h.projects || []).includes(p.id), pdot(p) + ' ' + esc(p.name), esc(teamLabel(teamById(p.teamId)) || '') + ' · ' + topTasks(p.id).filter(t => !isDone(t)).length + ' open')).join('') : '<div class="li"><span class="lbl faint">No projects</span></div>'}</div>
+    <div class="section-title">Tasks <span class="n" id="ho-tn"></span></div>
+    <div class="menu ho-list" id="ho-tasks">${taskPool.length ? taskPool.map(t => { const pj = projById(t.projectId); return pick('t', t.id, (h.tasks || []).includes(t.id), esc(t.title), [pj ? esc(pj.name) : 'No project', t.due ? fmtDay(t.due) : ''].filter(Boolean).join(' · ')); }).join('') : '<div class="li"><span class="lbl faint">You have no open tasks</span></div>'}</div>
+    <p class="faint" style="font-size:13px;margin:6px 6px 0">Tasks inside a chosen project are included automatically.</p>
+    ${isNew ? `<label class="li ho-pick" style="margin-top:12px;background:var(--surface);border-radius:var(--r-card)"><input type="checkbox" id="ho-assign"><span class="lbl">Also add them to my open tasks<div class="sub">They’ll see the work in their My Tasks too</div></span></label>` : ''}`,
+    onOpen: root => {
+      const upd = () => { const ps = $$('[data-p] input:checked', root).map(i => i.value);
+        $$('[data-t]', root).forEach(r => { const t = taskById(r.dataset.t); r.hidden = !!(t && ps.includes(t.projectId)); });
+        $('#ho-pn', root).textContent = ps.length ? ps.length + ' chosen' : ''; const tn = $$('[data-t]:not([hidden]) input:checked', root).length; $('#ho-tn', root).textContent = tn ? tn + ' chosen' : ''; };
+      root.addEventListener('change', upd); upd();
+    },
+    onOk: async root => {
+      const toId = $('#ho-to', root).value; if (!toId) { toast('Choose who is covering.', true); return false; }
+      const ps = $$('[data-p] input:checked', root).map(i => i.value), ts = $$('[data-t]:not([hidden]) input:checked', root).map(i => i.value);
+      if (!ps.length && !ts.length) { toast('Pick at least one project or task.', true); return false; }
+      const start = $('#ho-start', root).value, end = $('#ho-end', root).value;
+      if (start && end && end < start) { toast('“Back on” is before “Away from”.', true); return false; }
+      const r = await run('saveHandover', { handover: { id: isNew ? uidC('o') : h.id, toId, title: $('#ho-title', root).value.trim() || 'Handover', startDate: start, endDate: end, notes: $('#ho-notes', root).value.trim(), projects: ps, tasks: ts } }, isNew ? 'Handed over to ' + ((userById(toId) || {}).name || '') : 'Handover saved');
+      if (isNew && $('#ho-assign', root) && $('#ho-assign', root).checked) {
+        D().tasks.filter(t => !isDone(t) && (t.assignees || []).includes(m.id) && (ts.includes(t.id) || ts.includes(t.parentId) || ps.includes(t.projectId)) && !(t.assignees || []).includes(toId))
+          .forEach(t => op({ action: 'saveTask', task: { id: t.id, assignees: [...(t.assignees || []), toId] } }));
+      }
+      await sync({ force: true }); nav(() => { S.view = 'handover'; S.hoId = r.id; }, 'push');
+    } });
+}
+/* Printable handover document (PDF via the print sheet). */
+function handoverDocHtml(h) {
+  const e = esc, from = userById(h.fromId) || {}, to = userById(h.toId) || {}, today = todayStr();
+  const dfmt = s => { if (!s) return '—'; const d = parseDay(s); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); };
+  const people = ids => (ids || []).map(userById).filter(Boolean).map(u => e(u.name)).join(', ') || '<span class="mute">Unassigned</span>';
+  const row = (t, sub) => { const s = stageOf(t); return `<tr class="${sub ? 'sub' : ''}"><td>${sub ? '↳ ' : ''}<b>${e(t.title)}</b>${!sub && t.notes ? `<div class="nt">${e(t.notes.length > 240 ? t.notes.slice(0, 240) + '…' : t.notes)}</div>` : ''}</td><td>${people(t.assignees)}</td><td class="${t.due && t.due < today ? 'od' : ''}">${dfmt(t.due)}</td><td>${t.priority && t.priority !== 'none' ? PRIO[t.priority].l : '—'}</td><td>${e(s.l)}</td></tr>`; };
+  const table = list => `<table><thead><tr><th style="width:38%">Task</th><th style="width:22%">Assigned to</th><th style="width:14%">Due</th><th style="width:11%">Priority</th><th>Stage</th></tr></thead><tbody>${list.map(t => row(t) + subtasks(t.id).filter(x => !isDone(x)).map(x => row(x, true)).join('')).join('')}</tbody></table>`;
+  const projs = (h.projects || []).map(projById).filter(Boolean).map(p => { const open = topTasks(p.id).filter(t => !isDone(t)).sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1);
+    return `<h2>${e(p.name)} <span class="mute">${open.length} open</span></h2>${open.length ? table(open) : '<p class="mute">Nothing open.</p>'}`; }).join('');
+  const tasks = (h.tasks || []).map(taskById).filter(Boolean);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${e(h.title)} · Handover</title><style>
+@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;padding:28px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;color:#1c1c1e}
+h1{font-size:26px;margin:0}.meta{color:#3a3a3c;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 18px}.meta b{font-weight:600}
+header{border-bottom:2px solid #1c1c1e;padding-bottom:14px;margin-bottom:16px}.notes{white-space:pre-wrap;background:#f5f5f7;border-radius:12px;padding:12px 14px}
+h2{font-size:16px;margin:22px 0 8px}table{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}th{text-align:left;color:#6e6e73;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid #d1d1d6}
+td{padding:8px;border-bottom:1px solid #ececf0;vertical-align:top;overflow-wrap:anywhere}tr{break-inside:avoid}tr.sub td{background:#f7f7f9;font-size:12px}.nt{color:#6e6e73;font-size:11.5px;margin-top:3px;white-space:pre-wrap}
+.mute{color:#8e8e93}.od{color:#ff3b30;font-weight:600}footer{margin-top:26px;color:#8e8e93;font-size:11px}@media print{body{padding:0}}
+</style></head><body><header><h1>${e(h.title)}</h1><div class="meta"><span><b>From</b> ${e(from.name || '')}</span><span><b>Covering</b> ${e(to.name || '')}</span>${h.startDate ? `<span><b>Away from</b> ${dfmt(h.startDate)}</span>` : ''}${h.endDate ? `<span><b>Back on</b> ${dfmt(h.endDate)}</span>` : ''}</div></header>
+${h.notes ? `<h2>Notes</h2><div class="notes">${e(h.notes)}</div>` : ''}${projs}${tasks.length ? `<h2>Tasks <span class="mute">${tasks.length}</span></h2>${table(tasks)}` : ''}
+<footer>Exported from ${e(CONFIG.APP_NAME)} · ${new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</footer></body></html>`;
 }
 function projectDialog(p) {
   const isNew = !p; p = p || { name: '', description: '', color: 'blue', status: 'on_track', due: '' };
@@ -4235,7 +4425,9 @@ ${sections || '<p class="mute">No tasks yet.</p>'}
 </body></html>`);
 }
 function exportProject(p, kind) {
-  const html = projectDocHtml(p), name = (p.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Project') + ' - Orbit';
+  deliverDoc(projectDocHtml(p), (p.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Project') + ' - Orbit', kind);
+}
+function deliverDoc(html, name, kind) {
   if (kind === 'html') {
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const a = document.createElement('a'); a.href = url; a.download = name + '.html'; document.body.appendChild(a); a.click(); a.remove();

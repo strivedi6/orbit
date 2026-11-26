@@ -156,9 +156,10 @@ var TABLES = {
   tasks:      ['id','teamId','projectId','parentId','title','notes','status','priority','assignees','due','createdBy','createdAt','updatedAt','completedAt','order','attachments','repeat','nextId','repeatOn','subStages'],
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt'],
-  settings:   ['id','value','updatedAt']
+  settings:   ['id','value','updatedAt'],
+  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt']
 };
-var JSON_COLS = { palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
+var JSON_COLS = { projects: 1, tasks: 1, palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
 var DEFAULT_STAGES = [
   { id: 'todo', name: 'To Do', color: 'gray' }, { id: 'doing', name: 'In Progress', color: 'blue' },
@@ -311,6 +312,7 @@ function listOf(v) { return Array.isArray(v) ? v : []; }
 function isProjectManager(u, p) { return p.createdBy === u.id || listOf(p.managers).indexOf(u.id) >= 0; }
 function canSeeProject(u, p) {
   if (isAdmin(u) || isProjectManager(u, p)) return true;
+  if (HO[u.id] && HO[u.id].p[p.id]) return true;
   if (p.access === 'private') return listOf(p.members).indexOf(u.id) >= 0;
   var ts = userTeams(u); return projTeams(p).some(function (t) { return ts.indexOf(t) >= 0; });
 }
@@ -322,8 +324,17 @@ function projectPeople(DB, p) {
     .map(function (x) { return x.id; }).concat(listOf(p.managers));
 }
 function canSeeTask(DB, u, t) {
+  if (HO[u.id] && (HO[u.id].t[t.id] || (t.parentId && HO[u.id].t[t.parentId]) || (t.projectId && HO[u.id].p[t.projectId]))) return true;
   var p = t.projectId ? DB.get('projects', t.projectId) : null;
   return p ? canSeeProject(u, p) : canSeeTeam(u, t.teamId);
+}
+/* Handovers: while one is active, the person covering can see and work on the projects and tasks in it. */
+var HO = {};
+function hoActive(h) { if (h.status === 'closed') return false; if (!h.endDate) return true; var end = new Date(h.endDate + 'T00:00:00Z').getTime() + 3 * 86400000; return Date.now() <= end; }
+function loadHandoverAccess(DB) {
+  HO = {};
+  try { DB.all('handovers').forEach(function (h) { if (!h.toId || !hoActive(h)) return; var a = HO[h.toId] = HO[h.toId] || { p: {}, t: {} };
+    listOf(h.projects).forEach(function (id) { a.p[id] = 1; }); listOf(h.tasks).forEach(function (id) { a.t[id] = 1; }); }); } catch (e) { HO = {}; }
 }
 function findProperty(DB, code) { code = str(code).toUpperCase(); return DB.find('properties', function (p) { return String(p.code).toUpperCase() === code; }); }
 
@@ -435,10 +446,12 @@ var ACTIONS = {
     var pIds = {}, tset = {};
     mine.forEach(function (t) { tset[t] = 1; });
     projects.forEach(function (p) { pIds[p.id] = 1; projTeams(p).forEach(function (t) { tset[t] = 1; }); });
-    var tasks = DB.all('tasks').filter(function (t) { return admin || (t.projectId ? pIds[t.projectId] : mine.indexOf(t.teamId) >= 0); });
+    var ho = HO[u.id] || { p: {}, t: {} };
+    var tasks = DB.all('tasks').filter(function (t) { return admin || ho.t[t.id] || (t.parentId && ho.t[t.parentId]) || (t.projectId ? pIds[t.projectId] : mine.indexOf(t.teamId) >= 0); });
     var tIds = {}; tasks.forEach(function (t) { tIds[t.id] = 1; });
+    var hoPeople = {}; DB.all('handovers').forEach(function (h) { if (h.fromId === u.id) hoPeople[h.toId] = 1; if (h.toId === u.id) hoPeople[h.fromId] = 1; });
     var users = DB.all('users').filter(function (x) {
-      if (admin) return true;
+      if (admin || hoPeople[x.id]) return true;
       var xt = userTeams(x);
       if (!xt.some(function (t) { return tset[t]; })) return false;
       if (x.status === 'active') return true;
@@ -453,6 +466,7 @@ var ACTIONS = {
       teams: DB.all('teams'), users: users,
       projects: projects, tasks: tasks,
       comments: DB.all('comments').filter(function (c) { return tIds[c.taskId]; }),
+      handovers: DB.all('handovers').filter(function (h) { return admin || h.fromId === u.id || h.toId === u.id || (u.role === 'head' && mine.indexOf(h.teamId) >= 0); }),
       activity: activity,
       admin: admin ? adminInfo(DB) : null,
       app: appSettings(DB),
@@ -618,6 +632,41 @@ var ACTIONS = {
     if ((obj.assignees || []).length) log(DB, u, teamId, 'assign', obj.id, 'assigned “' + obj.title + '”', obj.assignees);
     else if (!parent) log(DB, u, teamId, 'task', obj.id, 'added “' + obj.title + '”', []);
     return obj;
+  },
+
+  /* ---------- handovers (someone leaving or going on leave) ---------- */
+  saveHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = r.handover || {}, existing = h.id ? DB.get('handovers', h.id) : null;
+    if (existing && existing.fromId !== u.id && !isAdmin(u)) fail('Only the person who wrote this handover can change it.');
+    var to = DB.get('users', str(h.toId));
+    if (!to || to.status !== 'active') fail('Choose who is covering.');
+    if (to.id === (existing ? existing.fromId : u.id)) fail('Choose someone else to cover.');
+    var projects = listOf(h.projects).filter(function (id, i, a) { var p = DB.get('projects', id); return a.indexOf(id) === i && p && canSeeProject(u, p); });
+    var tasks = listOf(h.tasks).filter(function (id, i, a) { var t = DB.get('tasks', id); return a.indexOf(id) === i && t && canSeeTask(DB, u, t); });
+    if (!projects.length && !tasks.length) fail('Pick at least one project or task to hand over.');
+    var f = { toId: to.id, title: str(h.title, 120) || 'Handover', startDate: str(h.startDate, 10), endDate: str(h.endDate, 10), notes: str(h.notes, 5000),
+      projects: projects, tasks: tasks, status: h.status === 'closed' ? 'closed' : 'active', updatedAt: nowISO() };
+    if (existing) { if (existing.toId !== f.toId) f.ackAt = ''; DB.update('handovers', existing.id, f); return DB.get('handovers', existing.id); }
+    var obj = Object.assign({ id: cleanId(h.id, 'o'), teamId: u.teamId, fromId: u.id, ackAt: '', createdAt: nowISO() }, f);
+    DB.insert('handovers', obj);
+    log(DB, u, u.teamId, 'handover', obj.id, 'handed over ' + projects.length + (projects.length === 1 ? ' project' : ' projects') + ' and ' + tasks.length + (tasks.length === 1 ? ' task' : ' tasks') + ' to ' + to.name, [to.id]);
+    return obj;
+  },
+  ackHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = DB.get('handovers', str(r.id));
+    if (!h || (h.toId !== u.id && h.fromId !== u.id && !isAdmin(u))) fail('That handover no longer exists.');
+    var f = { updatedAt: nowISO() };
+    if (r.close) f.status = 'closed'; else if (h.toId === u.id) f.ackAt = nowISO();
+    DB.update('handovers', h.id, f);
+    if (r.close) log(DB, u, h.teamId, 'handover', h.id, 'closed the handover ' + h.title, [h.toId === u.id ? h.fromId : h.toId]);
+    else log(DB, u, h.teamId, 'handover', h.id, 'took over ' + h.title, [h.fromId]);
+    return DB.get('handovers', h.id);
+  },
+  deleteHandover: function (DB, r) {
+    var u = auth(DB, r.token), h = DB.get('handovers', str(r.id));
+    if (!h) return { ok: true };
+    if (h.fromId !== u.id && !isAdmin(u)) fail('Only the person who wrote this handover can delete it.');
+    DB.remove('handovers', h.id); return { ok: true };
   },
 
   deleteTask: function (DB, r) {
@@ -981,6 +1030,7 @@ function coreHandle(DB, req) {
   try {
     var fn = ACTIONS[req && req.action];
     if (!fn) fail('Unknown request.');
+    loadHandoverAccess(DB);
     return { ok: true, data: fn(DB, req) };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
