@@ -1042,6 +1042,7 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .ho-pick .pdot{display:inline-block;vertical-align:middle;margin-right:2px}
 .old-notes{white-space:pre-wrap;line-height:1.5;padding-top:12px;padding-bottom:12px;color:var(--text-2);font-size:15px}
 .sub-more{display:block;width:100%;text-align:left;padding:12px 16px 12px 52px;color:var(--accent);font-size:15px;border-top:.5px solid var(--sep)}
+.push-ask .li{flex-wrap:wrap;row-gap:10px}.push-ask .btn{flex:none}@media (max-width:600px){.push-ask .lbl{flex-basis:calc(100% - 50px)}.push-ask .btn{margin-left:auto}.push-ask .btn+.btn{margin-left:8px}}
 
 </style>
 </head>
@@ -2022,7 +2023,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795787386';
+const ORBIT_BUILD = '1795788237';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -2611,6 +2612,7 @@ async function sync(opts = {}) {
 function acceptData(data) {
   S.data = data;
   syncAppIcon(data.app);
+  setTimeout(pushAuto, 1500);
   Outbox.q.forEach(applyLocal);
   Session.set(Session.token, data.me);
   if (S.scope !== 'all' && !myTeamIds().includes(S.scope)) S.scope = 'all';
@@ -3026,6 +3028,8 @@ function homeHtml() {
     <div class="smart">${tile('today', 'today', 'blue', today, 'Today')}${tile('overdue', 'alert', 'red', over, 'Overdue')}${tile('open', 'person', 'orange', open.length, 'Assigned to Me')}${tile('done', 'done', 'green', doneWk, 'Done This Week')}</div>
     ${pend.length ? `<button class="banner" data-act="goRequests"><span class="ico" style="background:var(--orange);border-radius:50%">${ic('personPlus')}</span>
       <div style="flex:1;min-width:0"><div class="t">${pend.length} ${pend.length === 1 ? 'person is' : 'people are'} waiting for approval</div><div class="d">${esc(pend.map(u => u.name).join(', '))}</div></div>${ic('chevR', 's')}</button>` : ''}
+    ${pushAsk() ? `<div class="menu push-ask" style="margin-bottom:18px"><div class="li"><span class="ico" style="background:var(--red)">${ic('bell')}</span><span class="lbl">Get a morning summary<div class="sub">One notification a day with what’s due today and overdue. Tap it to open your tasks.</div></span>
+      <button class="btn sm" data-act="pushLater">Not now</button><button class="btn primary sm" data-act="pushYes">Turn On</button></div></div>` : ''}
     <div class="section-title">Projects <span class="n tnum">${projs.length}</span><span class="sp"></span><button class="link mob-only" data-act="newProject">New Project</button></div>
     ${projs.length ? `<div class="pgrid">${projs.map(projectCard).join('')}</div>` : `<div class="card">${emptyState('folder', 'blue', 'No projects yet', 'Create the first project for your team.', '<button class="btn primary sm" data-act="newProject">New Project</button>')}</div>`}
     ${hos.length ? `<div class="section-title">Handovers <span class="n tnum">${hos.length}</span><button class="link" data-act="go" data-v="handovers" style="margin-left:auto">See all</button></div><div class="menu">${hos.map(hoRow).join('')}</div>` : ''}
@@ -3496,6 +3500,15 @@ function notifyHtml() {
     ${isAdminU() && st.on && st.scheduled === false ? `<div class="li"><span class="lbl sub" style="white-space:normal">Main admin: in Apps Script, choose <b>setupNotifications</b> and press Run once to start the daily schedule. Tests work already.</span></div>` : ''}</div>`;
 }
 
+/* Daily summary is on by default: if this device already allows notifications we switch it on quietly;
+   otherwise Home asks once (phones only allow the permission prompt after a tap). */
+function pushAsk() { const st = store.get('orbit_push', null); return !st && !pushSupport() && Notification.permission === 'default'; }
+async function pushAuto() {
+  const st = store.get('orbit_push', null);
+  if (st || pushSupport() || !Session.token) return;
+  if (Notification.permission === 'granted') { try { await pushOn(8); } catch (e) { } }
+}
+
 
 /* ---------------- task panel: slides in from the right ---------------- */
 function renderInsp(opts = {}) {
@@ -3848,6 +3861,8 @@ const ACT = {
     render({ soft: true });
   },
   async pushHour(el) { try { await pushOn(Number(el.value)); toast('You’ll get it at ' + hourLabel(Number(el.value))); } catch (e) { toast(e.message, true); } },
+  async pushYes() { try { await pushOn(8); toast('Daily summary is on at 8 AM. You can change the time in Settings.'); } catch (e) { store.set('orbit_push', { on: false, hour: 8 }); toast(e.message || 'Couldn’t turn on notifications', true); } render({ soft: true }); },
+  pushLater() { store.set('orbit_push', { on: false, hour: 8 }); render({ soft: true }); toast('You can turn it on any time in Settings'); },
   async pushTest() { try { await run('testPush', {}, 'Test sent. It should arrive in a few seconds.'); } catch (e) { } },
   moreDone(el) { S.doneMore[el.dataset.pid] = !S.doneMore[el.dataset.pid]; render({ soft: true }); },
   toggleDoneSubs() { S.showDoneSubs = !S.showDoneSubs; render({ soft: true }); },
