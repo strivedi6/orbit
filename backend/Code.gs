@@ -145,21 +145,22 @@ var SheetDB = (function () {
    One-time setup: run setupNotifications() once from the Apps Script editor (it asks for permission
    to send requests and to run on a timer), then every hour Orbit sends each person's summary at the
    hour they chose. */
+var B0_ = BigInt(0), B1_ = BigInt(1), B2_ = BigInt(2), B3_ = BigInt(3);
 var EC = (function () {
   var P = BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff');
   var N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
-  var A = P - BigInt(3);
+  var A = P - B3_;
   var G = [BigInt('0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296'), BigInt('0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5')];
-  function mod(a, m) { var r = a % m; return r < 0n ? r + m : r; }
-  function inv(a, m) { var lm = 1n, hm = 0n, low = mod(a, m), high = m; while (low > 1n) { var r = high / low; var nm = hm - lm * r, nw = high - low * r; hm = lm; high = low; lm = nm; low = nw; } return mod(lm, m); }
+  function mod(a, m) { var r = a % m; return r < B0_ ? r + m : r; }
+  function inv(a, m) { var lm = B1_, hm = B0_, low = mod(a, m), high = m; while (low > B1_) { var r = high / low; var nm = hm - lm * r, nw = high - low * r; hm = lm; high = low; lm = nm; low = nw; } return mod(lm, m); }
   function add(p1, p2) {
     if (!p1) return p2; if (!p2) return p1;
-    if (p1[0] === p2[0]) { if (mod(p1[1] + p2[1], P) === 0n) return null; return dbl(p1); }
+    if (p1[0] === p2[0]) { if (mod(p1[1] + p2[1], P) === B0_) return null; return dbl(p1); }
     var l = mod((p2[1] - p1[1]) * inv(p2[0] - p1[0], P), P), x = mod(l * l - p1[0] - p2[0], P);
     return [x, mod(l * (p1[0] - x) - p1[1], P)];
   }
-  function dbl(p1) { var l = mod((3n * p1[0] * p1[0] + A) * inv(2n * p1[1], P), P), x = mod(l * l - 2n * p1[0], P); return [x, mod(l * (p1[0] - x) - p1[1], P)]; }
-  function mul(k, pt) { var r = null, q = pt; while (k > 0n) { if (k & 1n) r = add(r, q); q = dbl(q); k >>= 1n; } return r; }
+  function dbl(p1) { var l = mod((B3_ * p1[0] * p1[0] + A) * inv(B2_ * p1[1], P), P), x = mod(l * l - B2_ * p1[0], P); return [x, mod(l * (p1[0] - x) - p1[1], P)]; }
+  function mul(k, pt) { var r = null, q = pt; while (k > B0_) { if (k & B1_) r = add(r, q); q = dbl(q); k >>= B1_; } return r; }
   function hex(b) { return b.map(function (x) { return ('0' + (x & 255).toString(16)).slice(-2); }).join(''); }
   function toBytes(n, len) { var h = n.toString(16); while (h.length < len * 2) h = '0' + h; var out = []; for (var i = 0; i < h.length; i += 2) out.push(parseInt(h.substr(i, 2), 16)); return out; }
   function big(bytes) { return BigInt('0x' + (hex(bytes) || '0')); }
@@ -167,7 +168,7 @@ var EC = (function () {
 })();
 function b64url_(bytes) { return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, ''); }
 function sha256_(bytes) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes); }
-function randomScalar_() { var seed = ''; for (var i = 0; i < 4; i++) seed += Utilities.getUuid() + Math.random() + Date.now(); return EC.mod(EC.big(sha256_(Utilities.newBlob(seed).getBytes())), EC.N - 1n) + 1n; }
+function randomScalar_() { var seed = ''; for (var i = 0; i < 4; i++) seed += Utilities.getUuid() + Math.random() + Date.now(); return EC.mod(EC.big(sha256_(Utilities.newBlob(seed).getBytes())), EC.N - B1_) + B1_; }
 /* The VAPID key pair lives in Script Properties; it is made the first time it is needed. */
 function vapidKeys_() {
   var props = PropertiesService.getScriptProperties(), d = props.getProperty('VAPID_D');
@@ -179,8 +180,8 @@ function vapidPublic() { return b64url_(vapidKeys_().pub); }
 function es256_(input, d) {
   var z = EC.big(sha256_(Utilities.newBlob(input).getBytes()));
   while (true) {
-    var k = randomScalar_(), R = EC.mul(k, EC.G), r = EC.mod(R[0], EC.N); if (r === 0n) continue;
-    var s = EC.mod(EC.inv(k, EC.N) * (z + r * d), EC.N); if (s === 0n) continue;
+    var k = randomScalar_(), R = EC.mul(k, EC.G), r = EC.mod(R[0], EC.N); if (r === B0_) continue;
+    var s = EC.mod(EC.inv(k, EC.N) * (z + r * d), EC.N); if (s === B0_) continue;
     return b64url_(EC.toBytes(r, 32).concat(EC.toBytes(s, 32)));
   }
 }
