@@ -849,9 +849,10 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 @media (min-width:1024px){
   .trow.rc .tsub .d-due,.trow.rc .tsub .d-st{display:none}
   .trow.rc{align-items:center}
-  .trow.rc .right{display:grid;grid-template-columns:96px 110px 56px 34px 58px;align-items:center;padding-top:0}
+  .trow.rc .right{display:grid;grid-template-columns:96px 172px 56px 34px 58px;align-items:center;padding-top:0}
   .trow.rc .right>span{display:inline-flex;align-items:center;min-width:0}
   .trow.rc .rc-due,.trow.rc .rc-st{font-size:13px;color:var(--text-2);white-space:nowrap;overflow:hidden}
+  .trow.rc .right>.rc-st{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.25;overflow-wrap:anywhere;padding-right:8px}
   .trow.rc .rc-flag{width:auto;margin:0;justify-content:center}
   .trow.rc .rc-cnt,.trow.rc .rc-av{justify-content:flex-end}
 }
@@ -1964,7 +1965,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795684835';
+const ORBIT_BUILD = '1795785654';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
