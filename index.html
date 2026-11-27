@@ -561,14 +561,14 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .tlist{container-type:inline-size}
 .tbl-h,.cells{display:none}
 @container (min-width: 760px){
-  .tbl-h{display:grid;grid-template-columns:1fr 168px 112px 104px 150px;gap:0;padding:0;margin:14px 0 -10px;font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em}
+  .tbl-h{display:grid;grid-template-columns:1fr 168px 112px 104px 186px;gap:0;padding:0;margin:14px 0 -10px;font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em}
   .tbl-h span:first-child{padding-left:52px}
   .tbl-h span:not(:first-child){padding-left:10px}
   .tlist .trow{align-items:center;padding-top:8px;padding-bottom:8px}
   .tlist .trow .d-due,.tlist .trow .right>.d-pa{display:none}
   .tlist .trow .ttl{font-size:16px}
   .tlist .trow .tsub:not(:has(span:not(.d-due):not(:empty))){display:none}
-  .cells{display:grid;grid-template-columns:168px 112px 104px 150px;align-self:stretch;margin:-8px -16px -8px 0;flex:none}
+  .cells{display:grid;grid-template-columns:168px 112px 104px 186px;align-self:stretch;margin:-8px -16px -8px 0;flex:none}
   .cell{display:flex;align-items:center;gap:8px;padding:0 10px;min-width:0;border-left:.5px solid var(--sep);font-size:14px;color:var(--text);text-align:left;position:relative;transition:background .15s}
   .cell:hover{background:var(--fill-4)}
   .cell .cn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -599,7 +599,8 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
   .tlist .cells{margin:-14px -16px -14px 0}
   .tbl-h span:first-child{padding-left:50px!important}
   .c-st{padding:0 10px 0 8px}
-  .c-st .pill{width:100%;justify-content:flex-start}
+  .c-st .pill{width:100%;justify-content:flex-start;height:auto;min-height:24px;padding:4px 10px;white-space:normal;text-overflow:clip;line-height:1.2;border-radius:12px}
+  .c-st .pill>.dot,.c-st .pill>i{flex:none}
 }
 
 /* ---------- export + filters ---------- */
@@ -1067,7 +1068,8 @@ var TABLES = {
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt'],
   settings:   ['id','value','updatedAt'],
-  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt']
+  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt'],
+  pushsubs:   ['id','userId','endpoint','key','hour','tzOffset','device','lastSent','createdAt']
 };
 var JSON_COLS = { projects: 1, tasks: 1, palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
@@ -1237,6 +1239,23 @@ function canSeeTask(DB, u, t) {
   if (HO[u.id] && (HO[u.id].t[t.id] || (t.parentId && HO[u.id].t[t.parentId]) || (t.projectId && HO[u.id].p[t.projectId]))) return true;
   var p = t.projectId ? DB.get('projects', t.projectId) : null;
   return p ? canSeeProject(u, p) : canSeeTeam(u, t.teamId);
+}
+/* Today's summary for one person: what's due today and what's overdue, with where a tap should go. */
+function dailySummary(DB, u, today) {
+  loadHandoverAccess(DB);
+  var open = DB.all('tasks').filter(function (t) {
+    if (!t.due || listOf(t.assignees).indexOf(u.id) < 0 || t.completedAt) return false;
+    if (t.status === 'done') return false;
+    return t.due <= today && canSeeTask(DB, u, t);
+  });
+  var dueToday = open.filter(function (t) { return t.due === today; }), overdue = open.filter(function (t) { return t.due < today; });
+  var first = (u.name || '').split(' ')[0], n = dueToday.length, o = overdue.length;
+  var title = !n && !o ? 'Nothing due today' : first ? 'Good morning, ' + first : 'Today in Orbit';
+  var parts = []; if (n) parts.push(n + (n === 1 ? ' task due today' : ' tasks due today')); if (o) parts.push(o + ' overdue');
+  var names = dueToday.concat(overdue).slice(0, 3).map(function (t) { return t.title; });
+  var body = parts.join(' · ') + (names.length ? ': ' + names.join(', ') + (n + o > 3 ? '…' : '') : '');
+  var url = n + o === 1 ? '#/task/' + (dueToday[0] || overdue[0]).id : '#/mytasks';
+  return { count: n + o, today: n, overdue: o, title: title, body: body || 'Open Orbit to plan your day.', url: url };
 }
 /* Handovers: while one is active, the person covering can see and work on the projects and tasks in it. */
 var HO = {};
@@ -1542,6 +1561,44 @@ var ACTIONS = {
     if ((obj.assignees || []).length) log(DB, u, teamId, 'assign', obj.id, 'assigned “' + obj.title + '”', obj.assignees);
     else if (!parent) log(DB, u, teamId, 'task', obj.id, 'added “' + obj.title + '”', []);
     return obj;
+  },
+
+  /* ---------- notifications: daily summary of today's and overdue tasks ---------- */
+  vapidKey: function (DB, r) {
+    auth(DB, r.token);
+    if (typeof pushHook !== 'function') fail('Notifications work in the installed app, not in this demo.');
+    return { key: pushHook('key'), scheduled: !!pushHook('scheduled') };
+  },
+  savePush: function (DB, r) {
+    var u = auth(DB, r.token), ep = str(r.endpoint, 1000);
+    if (!/^https:\/\//.test(ep)) fail('This device didn’t give a valid notification address.');
+    var hour = Math.max(0, Math.min(23, Number(r.hour) || 8)), off = Math.max(-840, Math.min(840, Number(r.tzOffset) || 0));
+    var ex = DB.find('pushsubs', function (x) { return x.endpoint === ep; });
+    if (ex) { DB.update('pushsubs', ex.id, { userId: u.id, hour: hour, tzOffset: off, device: str(r.device, 60) }); return { key: ex.key, hour: hour }; }
+    var key = uid('k') + uid('k');
+    DB.insert('pushsubs', { id: uid('n'), userId: u.id, endpoint: ep, key: key, hour: hour, tzOffset: off, device: str(r.device, 60), lastSent: '', createdAt: nowISO() });
+    return { key: key, hour: hour };
+  },
+  removePush: function (DB, r) {
+    var u = auth(DB, r.token), ep = str(r.endpoint, 1000);
+    DB.all('pushsubs').forEach(function (x) { if (x.userId === u.id && (!ep || x.endpoint === ep)) DB.remove('pushsubs', x.id); });
+    return { ok: true };
+  },
+  /* Called by the phone when a push arrives (no sign-in token there, only the device's own key). */
+  pushSummary: function (DB, r) {
+    var s = r.key ? DB.find('pushsubs', function (x) { return x.key === r.key; }) : null;
+    if (!s) fail('Not found.');
+    var u = DB.get('users', s.userId); if (!u) fail('Not found.');
+    var today = new Date(Date.now() + (Number(s.tzOffset) || 0) * 60000).toISOString().slice(0, 10);
+    return dailySummary(DB, u, today);
+  },
+  testPush: function (DB, r) {
+    var u = auth(DB, r.token);
+    if (typeof pushHook !== 'function') fail('Notifications work in the installed app, not in this demo.');
+    var subs = DB.all('pushsubs').filter(function (x) { return x.userId === u.id; }), sent = 0;
+    subs.forEach(function (x) { if (pushHook('send', x)) sent++; else DB.remove('pushsubs', x.id); });
+    if (!sent) fail('No device is set up for notifications yet.');
+    return { sent: sent };
   },
 
   /* ---------- handovers (someone leaving or going on leave) ---------- */
@@ -1965,7 +2022,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795785654';
+const ORBIT_BUILD = '1795787386';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -3349,6 +3406,7 @@ function settingsHtml() {
       <div class="li"><span class="ico" style="background:${isAdminU() || isClusterU(m) ? 'var(--accent)' : cvar(prop.color || 'indigo')}">${ic('building')}</span><span class="lbl">${isAdminU() ? 'Sign-in Code' : 'Property'}</span><span class="val"><span>${isAdminU() ? 'ADMIN · all properties' : isClusterU(m) ? 'Cluster · ' + esc(userCodes(m).join(' · ')) : esc(m.propertyCode) + (prop.name ? ' · ' + esc(prop.name) : '')}</span></span></div>
       <button class="li" data-act="changePin"><span class="ico" style="background:var(--blue)">${ic('lock')}</span><span class="lbl">Change PIN</span><span class="chev">${ic('chevR', 's')}</span></button>
     </div>
+    ${notifyHtml()}
     <div class="section-title">Appearance</div>
     <div class="menu"><div class="li" style="flex-wrap:wrap"><span class="ico" style="background:var(--purple)">${ic('moon')}</span><span class="lbl">Theme</span>
       <div class="seg" id="seg-theme">${['system', 'light', 'dark'].map(t => `<button class="${theme === t ? 'on' : ''}" data-act="theme" data-t="${t}">${t === 'system' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
@@ -3415,6 +3473,27 @@ function handoverHtml() {
     ${projs.map(projBlock).join('')}
     ${tasks.length ? `<div class="section-title">Tasks <span class="n tnum">${tasks.length}</span></div><div class="tw-out"><div class="menu">${tasks.map(t => taskRow(t, { rc: true, showProject: true, showStatus: true, pend, expand: true })).join('')}</div></div>` : ''}
     ${!projs.length && !tasks.length ? `<div class="menu">${emptyState('handover', 'gray', 'Nothing to show', 'The projects and tasks in this handover are no longer available.')}</div>` : ''}`;
+}
+
+/* Settings → Notifications: a morning summary of what's due today and overdue. */
+const PUSH_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 20];
+const hourLabel = h => (h % 12 || 12) + (h < 12 ? ' AM' : ' PM');
+function pushSupport() {
+  if (!API.live) return 'Notifications work in the live app, not in this demo.';
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'On iPhone, first add Orbit to your Home Screen (Share → Add to Home Screen), then open it from there.' : 'This browser can’t show notifications.';
+  }
+  if (Notification.permission === 'denied') return 'Notifications are blocked for Orbit. Allow them in your phone or browser settings, then come back here.';
+  return '';
+}
+function notifyHtml() {
+  const st = store.get('orbit_push', {}) || {}, why = pushSupport(), on = !!st.on && !why;
+  return `<div class="section-title">Notifications</div><div class="menu">
+    <div class="li"><span class="ico" style="background:var(--red)">${ic('bell')}</span><span class="lbl">Daily summary<div class="sub">${why ? esc(why) : 'Today’s due and overdue tasks. Tap it to open My Tasks.'}</div></span>
+      <label class="switch"><input type="checkbox" data-change="pushToggle" ${on ? 'checked' : ''} ${why ? 'disabled' : ''} aria-label="Daily summary"><span></span></label></div>
+    ${on ? `<div class="li"><span class="ico" style="background:var(--orange)">${ic('clock')}</span><span class="lbl">Time</span><select class="sel" data-change="pushHour" aria-label="Time">${PUSH_HOURS.map(h => `<option value="${h}" ${h === (st.hour || 8) ? 'selected' : ''}>${hourLabel(h)}</option>`).join('')}</select></div>
+      <button class="li" data-act="pushTest"><span class="ico" style="background:var(--green)">${ic('check')}</span><span class="lbl">Send a test notification</span></button>` : ''}
+    ${isAdminU() && st.on && st.scheduled === false ? `<div class="li"><span class="lbl sub" style="white-space:normal">Main admin: in Apps Script, choose <b>setupNotifications</b> and press Run once to start the daily schedule. Tests work already.</span></div>` : ''}</div>`;
 }
 
 
@@ -3762,6 +3841,14 @@ const ACT = {
   editStages() { stagesDialog(projById(S.projectId)); },
   wlPeriod(el) { S.wlPeriod = el.dataset.p; render(); },
   sbToggle(el) { const k = el.dataset.k; SBC[k] = !SBC[k]; store.set('orbit_sbc', SBC); render({ soft: true }); },
+  async pushToggle(el) {
+    if (!el.checked) { await pushOff(); render({ soft: true }); return; }
+    el.disabled = true;
+    try { await pushOn((store.get('orbit_push', {}) || {}).hour || 8); toast('Daily summary is on'); } catch (e) { el.checked = false; toast(e.message || 'Couldn’t turn on notifications', true); }
+    render({ soft: true });
+  },
+  async pushHour(el) { try { await pushOn(Number(el.value)); toast('You’ll get it at ' + hourLabel(Number(el.value))); } catch (e) { toast(e.message, true); } },
+  async pushTest() { try { await run('testPush', {}, 'Test sent. It should arrive in a few seconds.'); } catch (e) { } },
   moreDone(el) { S.doneMore[el.dataset.pid] = !S.doneMore[el.dataset.pid]; render({ soft: true }); },
   toggleDoneSubs() { S.showDoneSubs = !S.showDoneSubs; render({ soft: true }); },
   editC(el) { S.editingC = el.dataset.id; renderInsp(); setTimeout(() => { const b = $('#cedit'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 30); },
@@ -4218,6 +4305,24 @@ async function shareLink(kind, id, title) {
   try { await navigator.clipboard.writeText(url); toast('Link copied'); return; } catch (e) { }
   openDialog({ title: 'Copy Link', ok: 'Done', body: `<input class="input" id="lnk" value="${esc(url)}" readonly><p class="faint" style="font-size:13px;margin:8px 6px 0">Select the link and copy it. People need to sign in and be part of the team to open it.</p>`,
     onOpen: root => { const i = $('#lnk', root); i.focus(); i.select(); }, onOk: () => true });
+}
+/* Turn the daily summary on for this device (asks permission, registers with the phone's push service). */
+function b64ToBytes(b) { const s = atob((b + '==='.slice((b.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); }
+async function pushOn(hour) {
+  const why = pushSupport(); if (why) throw new Error(why);
+  if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') throw new Error('Notifications weren’t allowed.');
+  const reg = await navigator.serviceWorker.ready, v = await API.call('vapidKey', {});
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && store.get('orbit_push', {}).vk && store.get('orbit_push', {}).vk !== v.key) { await sub.unsubscribe(); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(v.key) });
+  const r = await API.call('savePush', { endpoint: sub.endpoint, hour, tzOffset: -new Date().getTimezoneOffset(), device: /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'Computer' });
+  const c = await caches.open('orbit-push'); await c.put('./__orbit_push', new Response(JSON.stringify({ api: CONFIG.API_URL, key: r.key })));
+  store.set('orbit_push', { on: true, hour: r.hour, vk: v.key, scheduled: v.scheduled });
+}
+async function pushOff() {
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) { await API.call('removePush', { endpoint: sub.endpoint }).catch(() => { }); await sub.unsubscribe(); } } catch (e) { }
+  try { (await caches.open('orbit-push')).delete('./__orbit_push'); } catch (e) { }
+  store.set('orbit_push', { on: false, hour: (store.get('orbit_push', {}) || {}).hour || 8 }); toast('Daily summary is off');
 }
 function handoverDialog(h) {
   const isNew = !h, m = me(); h = h || { title: 'Leave handover', projects: [], tasks: [], notes: '', startDate: todayStr(), endDate: '' };
@@ -5308,6 +5413,8 @@ addEventListener('online', () => { Outbox.kick(0); });
   document.addEventListener('touchend', end, { passive: true }); document.addEventListener('touchcancel', end, { passive: true });
 })();
 
+/* A tapped notification asks the open app to go to its page. */
+try { navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'orbit-open' && e.data.hash) location.hash = e.data.hash; }); } catch (e) { }
 /* Links opened while the app is already running */
 addEventListener('hashchange', () => { if (!Session.token || !S.data || location.hash === routeHash()) return; if (applyRoute(location.hash)) render(); else { toast('That link isn’t available to you.', true); syncHash(); } });
 

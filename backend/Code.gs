@@ -31,7 +31,7 @@ function doPost(e) {
   var req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request.' }); }
   var lock = LockService.getScriptLock();
-  var readOnly = req.action === 'sync' || req.action === 'teams';
+  var readOnly = req.action === 'sync' || req.action === 'teams' || req.action === 'pushSummary' || req.action === 'vapidKey';
   if (!readOnly) lock.waitLock(25000);
   try { SheetDB.reset(); return json_(coreHandle(SheetDB, req)); }
   finally { if (!readOnly) lock.releaseLock(); }
@@ -138,6 +138,92 @@ var SheetDB = (function () {
   };
 })();
 
+
+/* ================= Push notifications (daily summary) =================
+   Web Push with VAPID, signed here with P-256 ECDSA in plain JavaScript (no outside service).
+   The push itself carries no data; the phone wakes up, asks Orbit for the summary, and shows it.
+   One-time setup: run setupNotifications() once from the Apps Script editor (it asks for permission
+   to send requests and to run on a timer), then every hour Orbit sends each person's summary at the
+   hour they chose. */
+var EC = (function () {
+  var P = BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff');
+  var N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+  var A = P - BigInt(3);
+  var G = [BigInt('0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296'), BigInt('0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5')];
+  function mod(a, m) { var r = a % m; return r < 0n ? r + m : r; }
+  function inv(a, m) { var lm = 1n, hm = 0n, low = mod(a, m), high = m; while (low > 1n) { var r = high / low; var nm = hm - lm * r, nw = high - low * r; hm = lm; high = low; lm = nm; low = nw; } return mod(lm, m); }
+  function add(p1, p2) {
+    if (!p1) return p2; if (!p2) return p1;
+    if (p1[0] === p2[0]) { if (mod(p1[1] + p2[1], P) === 0n) return null; return dbl(p1); }
+    var l = mod((p2[1] - p1[1]) * inv(p2[0] - p1[0], P), P), x = mod(l * l - p1[0] - p2[0], P);
+    return [x, mod(l * (p1[0] - x) - p1[1], P)];
+  }
+  function dbl(p1) { var l = mod((3n * p1[0] * p1[0] + A) * inv(2n * p1[1], P), P), x = mod(l * l - 2n * p1[0], P); return [x, mod(l * (p1[0] - x) - p1[1], P)]; }
+  function mul(k, pt) { var r = null, q = pt; while (k > 0n) { if (k & 1n) r = add(r, q); q = dbl(q); k >>= 1n; } return r; }
+  function hex(b) { return b.map(function (x) { return ('0' + (x & 255).toString(16)).slice(-2); }).join(''); }
+  function toBytes(n, len) { var h = n.toString(16); while (h.length < len * 2) h = '0' + h; var out = []; for (var i = 0; i < h.length; i += 2) out.push(parseInt(h.substr(i, 2), 16)); return out; }
+  function big(bytes) { return BigInt('0x' + (hex(bytes) || '0')); }
+  return { N: N, G: G, mod: mod, inv: inv, mul: mul, toBytes: toBytes, big: big };
+})();
+function b64url_(bytes) { return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, ''); }
+function sha256_(bytes) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes); }
+function randomScalar_() { var seed = ''; for (var i = 0; i < 4; i++) seed += Utilities.getUuid() + Math.random() + Date.now(); return EC.mod(EC.big(sha256_(Utilities.newBlob(seed).getBytes())), EC.N - 1n) + 1n; }
+/* The VAPID key pair lives in Script Properties; it is made the first time it is needed. */
+function vapidKeys_() {
+  var props = PropertiesService.getScriptProperties(), d = props.getProperty('VAPID_D');
+  if (!d) { var k = randomScalar_(); d = k.toString(16); props.setProperty('VAPID_D', d); }
+  var priv = BigInt('0x' + d), Q = EC.mul(priv, EC.G);
+  return { d: priv, pub: [4].concat(EC.toBytes(Q[0], 32), EC.toBytes(Q[1], 32)) };
+}
+function vapidPublic() { return b64url_(vapidKeys_().pub); }
+function es256_(input, d) {
+  var z = EC.big(sha256_(Utilities.newBlob(input).getBytes()));
+  while (true) {
+    var k = randomScalar_(), R = EC.mul(k, EC.G), r = EC.mod(R[0], EC.N); if (r === 0n) continue;
+    var s = EC.mod(EC.inv(k, EC.N) * (z + r * d), EC.N); if (s === 0n) continue;
+    return b64url_(EC.toBytes(r, 32).concat(EC.toBytes(s, 32)));
+  }
+}
+var VAPID_SUB_ = 'https://strivedi6.github.io/orbit/';
+function vapidAuth_(endpoint) {
+  var keys = vapidKeys_(), aud = endpoint.match(/^https?:\/\/[^\/]+/)[0];
+  var enc = function (o) { return b64url_(Utilities.newBlob(JSON.stringify(o)).getBytes()); };
+  var unsigned = enc({ typ: 'JWT', alg: 'ES256' }) + '.' + enc({ aud: aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: VAPID_SUB_ });
+  return 'vapid t=' + unsigned + '.' + es256_(unsigned, keys.d) + ', k=' + b64url_(keys.pub);
+}
+/* Sends an empty push; returns false when the subscription is gone (the phone unsubscribed). */
+function sendPush_(sub) {
+  var res = UrlFetchApp.fetch(sub.endpoint, { method: 'post', payload: '', muteHttpExceptions: true,
+    headers: { Authorization: vapidAuth_(sub.endpoint), TTL: '43200', Urgency: 'normal' } });
+  var code = res.getResponseCode();
+  return !(code === 404 || code === 410);
+}
+function pushHook(kind, data) {
+  if (kind === 'key') return vapidPublic();
+  if (kind === 'send') return sendPush_(data);
+  if (kind === 'scheduled') return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'orbitNotify'; });
+}
+/* Runs every hour: anyone whose chosen hour it is (in their own time zone) gets today's summary. */
+function orbitNotify() {
+  SheetDB.reset();
+  var now = new Date(), today = function (off) { return new Date(now.getTime() + off * 60000).toISOString().slice(0, 10); };
+  SheetDB.all('pushsubs').forEach(function (s) {
+    var off = Number(s.tzOffset) || 0, local = new Date(now.getTime() + off * 60000);
+    if (local.getUTCHours() !== Number(s.hour) || s.lastSent === today(off)) return;
+    var u = SheetDB.get('users', s.userId); if (!u || u.status !== 'active') return;
+    var sum = dailySummary(SheetDB, u, today(off));
+    SheetDB.update('pushsubs', s.id, { lastSent: today(off) });
+    if (!sum.count) return;
+    try { if (!sendPush_(s)) SheetDB.remove('pushsubs', s.id); } catch (e) { }
+  });
+}
+/* Run this once from the editor: grants permission and starts the hourly check. */
+function setupNotifications() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'orbitNotify') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('orbitNotify').timeBased().everyHours(1).create();
+  vapidPublic(); SheetDB.reset(); SheetDB.sheet('pushsubs');
+  Logger.log('Daily notifications are on. Orbit checks every hour and sends each person their summary at the time they chose.');
+}
 /* =====================================================================
    ORBIT CORE — shared business logic.
    The same code runs in the browser (demo mode, data on this device)
@@ -157,7 +243,8 @@ var TABLES = {
   comments:   ['id','teamId','taskId','userId','text','createdAt','parentId','reactions','editedAt'],
   activity:   ['id','teamId','userId','type','refId','text','targets','createdAt'],
   settings:   ['id','value','updatedAt'],
-  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt']
+  handovers:  ['id','teamId','fromId','toId','title','startDate','endDate','notes','projects','tasks','status','ackAt','createdAt','updatedAt'],
+  pushsubs:   ['id','userId','endpoint','key','hour','tzOffset','device','lastSent','createdAt']
 };
 var JSON_COLS = { projects: 1, tasks: 1, palette: 1, assignees: 1, attachments: 1, targets: 1, reactions: 1, teamIds: 1, stages: 1, subStages: 1, shareTeams: 1, mentions: 1, members: 1, managers: 1 };
 var REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅', '🙏', '🔥'];
@@ -327,6 +414,23 @@ function canSeeTask(DB, u, t) {
   if (HO[u.id] && (HO[u.id].t[t.id] || (t.parentId && HO[u.id].t[t.parentId]) || (t.projectId && HO[u.id].p[t.projectId]))) return true;
   var p = t.projectId ? DB.get('projects', t.projectId) : null;
   return p ? canSeeProject(u, p) : canSeeTeam(u, t.teamId);
+}
+/* Today's summary for one person: what's due today and what's overdue, with where a tap should go. */
+function dailySummary(DB, u, today) {
+  loadHandoverAccess(DB);
+  var open = DB.all('tasks').filter(function (t) {
+    if (!t.due || listOf(t.assignees).indexOf(u.id) < 0 || t.completedAt) return false;
+    if (t.status === 'done') return false;
+    return t.due <= today && canSeeTask(DB, u, t);
+  });
+  var dueToday = open.filter(function (t) { return t.due === today; }), overdue = open.filter(function (t) { return t.due < today; });
+  var first = (u.name || '').split(' ')[0], n = dueToday.length, o = overdue.length;
+  var title = !n && !o ? 'Nothing due today' : first ? 'Good morning, ' + first : 'Today in Orbit';
+  var parts = []; if (n) parts.push(n + (n === 1 ? ' task due today' : ' tasks due today')); if (o) parts.push(o + ' overdue');
+  var names = dueToday.concat(overdue).slice(0, 3).map(function (t) { return t.title; });
+  var body = parts.join(' · ') + (names.length ? ': ' + names.join(', ') + (n + o > 3 ? '…' : '') : '');
+  var url = n + o === 1 ? '#/task/' + (dueToday[0] || overdue[0]).id : '#/mytasks';
+  return { count: n + o, today: n, overdue: o, title: title, body: body || 'Open Orbit to plan your day.', url: url };
 }
 /* Handovers: while one is active, the person covering can see and work on the projects and tasks in it. */
 var HO = {};
@@ -632,6 +736,44 @@ var ACTIONS = {
     if ((obj.assignees || []).length) log(DB, u, teamId, 'assign', obj.id, 'assigned “' + obj.title + '”', obj.assignees);
     else if (!parent) log(DB, u, teamId, 'task', obj.id, 'added “' + obj.title + '”', []);
     return obj;
+  },
+
+  /* ---------- notifications: daily summary of today's and overdue tasks ---------- */
+  vapidKey: function (DB, r) {
+    auth(DB, r.token);
+    if (typeof pushHook !== 'function') fail('Notifications work in the installed app, not in this demo.');
+    return { key: pushHook('key'), scheduled: !!pushHook('scheduled') };
+  },
+  savePush: function (DB, r) {
+    var u = auth(DB, r.token), ep = str(r.endpoint, 1000);
+    if (!/^https:\/\//.test(ep)) fail('This device didn’t give a valid notification address.');
+    var hour = Math.max(0, Math.min(23, Number(r.hour) || 8)), off = Math.max(-840, Math.min(840, Number(r.tzOffset) || 0));
+    var ex = DB.find('pushsubs', function (x) { return x.endpoint === ep; });
+    if (ex) { DB.update('pushsubs', ex.id, { userId: u.id, hour: hour, tzOffset: off, device: str(r.device, 60) }); return { key: ex.key, hour: hour }; }
+    var key = uid('k') + uid('k');
+    DB.insert('pushsubs', { id: uid('n'), userId: u.id, endpoint: ep, key: key, hour: hour, tzOffset: off, device: str(r.device, 60), lastSent: '', createdAt: nowISO() });
+    return { key: key, hour: hour };
+  },
+  removePush: function (DB, r) {
+    var u = auth(DB, r.token), ep = str(r.endpoint, 1000);
+    DB.all('pushsubs').forEach(function (x) { if (x.userId === u.id && (!ep || x.endpoint === ep)) DB.remove('pushsubs', x.id); });
+    return { ok: true };
+  },
+  /* Called by the phone when a push arrives (no sign-in token there, only the device's own key). */
+  pushSummary: function (DB, r) {
+    var s = r.key ? DB.find('pushsubs', function (x) { return x.key === r.key; }) : null;
+    if (!s) fail('Not found.');
+    var u = DB.get('users', s.userId); if (!u) fail('Not found.');
+    var today = new Date(Date.now() + (Number(s.tzOffset) || 0) * 60000).toISOString().slice(0, 10);
+    return dailySummary(DB, u, today);
+  },
+  testPush: function (DB, r) {
+    var u = auth(DB, r.token);
+    if (typeof pushHook !== 'function') fail('Notifications work in the installed app, not in this demo.');
+    var subs = DB.all('pushsubs').filter(function (x) { return x.userId === u.id; }), sent = 0;
+    subs.forEach(function (x) { if (pushHook('send', x)) sent++; else DB.remove('pushsubs', x.id); });
+    if (!sent) fail('No device is set up for notifications yet.');
+    return { sent: sent };
   },
 
   /* ---------- handovers (someone leaving or going on leave) ---------- */
