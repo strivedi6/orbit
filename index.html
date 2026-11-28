@@ -1045,7 +1045,8 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .push-ask .li{flex-wrap:wrap;row-gap:10px}.push-ask .btn{flex:none}@media (max-width:600px){.push-ask .lbl{flex-basis:calc(100% - 50px)}.push-ask .btn{margin-left:auto}.push-ask .btn+.btn{margin-left:8px}}
 /* theme switch: circle reveal (view transitions) or colour cross-fade */
 ::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
-::view-transition-old(root){z-index:1}::view-transition-new(root){z-index:2}
+::view-transition-old(root){z-index:1}
+::view-transition-new(root){z-index:2;-webkit-mask-image:radial-gradient(circle closest-side,#000 62%,rgba(0,0,0,.6) 80%,transparent 100%);mask-image:radial-gradient(circle closest-side,#000 62%,rgba(0,0,0,.6) 80%,transparent 100%);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-size:0 0;mask-size:0 0}
 html.theme-fade,html.theme-fade *,html.theme-fade *::before,html.theme-fade *::after{transition:background-color .55s ease,color .55s ease,border-color .55s ease,fill .55s ease,stroke .55s ease,box-shadow .55s ease!important}
 
 </style>
@@ -2027,7 +2028,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795852313';
+const ORBIT_BUILD = '1795852435';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -4356,8 +4357,9 @@ function themeSwitch(change, x, y) {
   t.ready.then(() => {
     if (isDarkNow() === before) return;
     const R = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${R}px at ${x}px ${y}px)`] },
-      { duration: 650, easing: 'cubic-bezier(.3,.7,.2,1)', pseudoElement: '::view-transition-new(root)' });
+    // soft-edged circle (a blurred mask, like the sign-in reveal) that grows from the button
+    const S = Math.ceil(2 * R / 0.62), k = (sz) => ({ maskSize: sz + 'px ' + sz + 'px', webkitMaskSize: sz + 'px ' + sz + 'px', maskPosition: (x - sz / 2) + 'px ' + (y - sz / 2) + 'px', webkitMaskPosition: (x - sz / 2) + 'px ' + (y - sz / 2) + 'px' });
+    document.documentElement.animate([k(0), k(S)], { duration: 800, easing: 'cubic-bezier(.35,.6,.2,1)', fill: 'both', pseudoElement: '::view-transition-new(root)' });
   }).catch(() => { });
 }
 function handoverDialog(h) {
