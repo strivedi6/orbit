@@ -1043,6 +1043,10 @@ button.twist:hover{color:var(--accent);background:var(--fill-4)}
 .old-notes{white-space:pre-wrap;line-height:1.5;padding-top:12px;padding-bottom:12px;color:var(--text-2);font-size:15px}
 .sub-more{display:block;width:100%;text-align:left;padding:12px 16px 12px 52px;color:var(--accent);font-size:15px;border-top:.5px solid var(--sep)}
 .push-ask .li{flex-wrap:wrap;row-gap:10px}.push-ask .btn{flex:none}@media (max-width:600px){.push-ask .lbl{flex-basis:calc(100% - 50px)}.push-ask .btn{margin-left:auto}.push-ask .btn+.btn{margin-left:8px}}
+/* theme switch: circle reveal (view transitions) or colour cross-fade */
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
+::view-transition-old(root){z-index:1}::view-transition-new(root){z-index:2}
+html.theme-fade,html.theme-fade *,html.theme-fade *::before,html.theme-fade *::after{transition:background-color .55s ease,color .55s ease,border-color .55s ease,fill .55s ease,stroke .55s ease,box-shadow .55s ease!important}
 
 </style>
 </head>
@@ -2023,7 +2027,7 @@ function seedAdmin(DB, cfg) {
 /* =====================================================================
    ORBIT — project management for hotel teams (iOS 27 / macOS Tahoe look)
    ===================================================================== */
-const ORBIT_BUILD = '1795788237';
+const ORBIT_BUILD = '1795852313';
 /* Shareable links: #/task/<id>, #/project/<id>, #/handover/<id>, #/mytasks … (read once at start, applied after sign-in). */
 let PENDING_ROUTE = /^#\/./.test(location.hash) ? location.hash : null, ROUTE_TRIES = 0;
 /* iPhone/iPad: iOS blurs the strip under the status bar, so content starts a little lower there. */
@@ -4232,7 +4236,7 @@ const ACT = {
   async signOutEveryone() { if (!await confirmBox({ title: 'Sign out everyone?', msg: 'Every other phone and computer will go back to the sign-in screen. You stay signed in here.', ok: 'Sign Out All', danger: true })) return;
     try { const r = await run('signOutEveryone', {}); toast(r.signedOut + (r.signedOut === 1 ? ' device' : ' devices') + ' signed out'); await sync({ force: true }); } catch (e) { } },
   setAccent(el) { store.set(accentKey(), el.dataset.c || ''); applyAccent(); Motion.haptic && Motion.haptic(); render({ soft: true }); },
-  theme(el) { store.set('orbit_theme', el.dataset.t); applyTheme(); render(); },
+  theme(el) { const r = el.getBoundingClientRect(); themeSwitch(() => { store.set('orbit_theme', el.dataset.t); applyTheme(); render(); }, r.left + r.width / 2, r.top + r.height / 2); },
   async refresh() { toast('Refreshing…', false, true); await Outbox.flush(); await sync({ force: true }); fetchPhotos(); toast('Up to date'); },
   async resetDemo() { if (!await confirmBox({ title: 'Reset demo data?', msg: 'All demo projects and changes on this device go back to the starting example.', ok: 'Reset', danger: true })) return; LocalDB.reset(); store.del('orbit_photos'); for (const k in PH) delete PH[k]; signedOut('Demo data reset. Sign in again.'); },
   async signOut() {
@@ -4338,6 +4342,23 @@ async function pushOff() {
   try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) { await API.call('removePush', { endpoint: sub.endpoint }).catch(() => { }); await sub.unsubscribe(); } } catch (e) { }
   try { (await caches.open('orbit-push')).delete('./__orbit_push'); } catch (e) { }
   store.set('orbit_push', { on: false, hour: (store.get('orbit_push', {}) || {}).hour || 8 }); toast('Daily summary is off');
+}
+/* Light ↔ dark: the new look grows out of the button in a circle (view transitions);
+   browsers without them get a soft cross-fade of colours. */
+function isDarkNow() { return getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, b) => a + +b, 0) < 300; }
+function themeSwitch(change, x, y) {
+  const before = isDarkNow(), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fade = () => { const h = document.documentElement; h.classList.add('theme-fade'); change(); clearTimeout(themeSwitch.t); themeSwitch.t = setTimeout(() => h.classList.remove('theme-fade'), 650); };
+  if (reduce) return change();
+  if (!document.startViewTransition) return fade();
+  if (x == null) { x = innerWidth / 2; y = innerHeight / 2; }
+  const t = document.startViewTransition(() => { change(); });
+  t.ready.then(() => {
+    if (isDarkNow() === before) return;
+    const R = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${R}px at ${x}px ${y}px)`] },
+      { duration: 650, easing: 'cubic-bezier(.3,.7,.2,1)', pseudoElement: '::view-transition-new(root)' });
+  }).catch(() => { });
 }
 function handoverDialog(h) {
   const isNew = !h, m = me(); h = h || { title: 'Leave handover', projects: [], tasks: [], notes: '', startDate: todayStr(), endDate: '' };
